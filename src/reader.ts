@@ -53,6 +53,9 @@ export class Reader implements vscode.Disposable {
   private elapsed = 0;
   private total = 0;
   private rate: number;
+  /** Volume and mute as last reported by the player. */
+  private volume = 100;
+  private muted = false;
   private start: PlanStart = { index: 0, offset: 0, word: -1, autoplay: false };
   private revision = 0;
   private engine: SpeechEngine | undefined;
@@ -286,8 +289,8 @@ export class Reader implements vscode.Disposable {
     }
     const s = this.settings;
     this.post(planMessage(reading.doc, this.revision, this.start, {
-      rate: this.rate, followInEditor: s.followInEditor, highlightWords: s.highlightWords, skipBack: s.skipBack, skipForward: s.skipForward,
-      tableMode: s.tableMode, codeBlocks: s.codeBlocks
+      rate: this.rate, volume: s.volume, followInEditor: s.followInEditor, highlightWords: s.highlightWords, skipBack: s.skipBack,
+      skipForward: s.skipForward, tableMode: s.tableMode, codeBlocks: s.codeBlocks
     }, reading.title, !!reading.selection));
     this.sendEngine();
     if (reading.stale) this.post({ type: 'stale', value: true });
@@ -530,6 +533,8 @@ export class Reader implements vscode.Disposable {
     this.elapsed = Number(message.elapsed) || 0;
     this.total = Number(message.total) || 0;
     if (typeof message.rate === 'number' && SPEEDS.includes(message.rate as typeof SPEEDS[number])) this.rate = message.rate;
+    if (typeof message.volume === 'number') this.volume = message.volume;
+    this.muted = !!message.muted;
     this.start = { index, offset: Number(message.offset) || 0, word: -1, autoplay: this.playing };
     if (moved) this.showPosition();
     this.updateControls();
@@ -560,6 +565,9 @@ export class Reader implements vscode.Disposable {
           this.updateControls();
           await this.services.update('rate', value);
         }
+        break;
+      case 'volume':
+        if (typeof value === 'number' && value >= 0 && value <= 100) await this.services.update('volume', Math.round(value));
         break;
       case 'voice':
         if (typeof value === 'string') await this.changeVoice(value);
@@ -597,10 +605,12 @@ export class Reader implements vscode.Disposable {
     const after = this.services.settings();
     const changed = (key: string) => event.affectsConfiguration(`clearMarkdown.${key}`);
     this.settings = after;
+    const playerSettings = ['rate', 'volume', 'highlightWords', 'followInEditor', 'skipBackSeconds', 'skipForwardSeconds'].some(changed);
     if (!this.reading) {
       this.kind = after.engine;
       this.rate = after.rate;
       this.highlight.configure({ follow: after.followInEditor, words: after.highlightWords });
+      if (playerSettings) this.postSettings();
       return;
     }
     if (changed('engine') || changed('naturalQuality') || changed('threads')) {
@@ -615,16 +625,21 @@ export class Reader implements vscode.Disposable {
       this.renew();
       this.sendEngine();
     }
-    if (changed('rate') || changed('highlightWords') || changed('followInEditor') || changed('skipBackSeconds') || changed('skipForwardSeconds')) {
+    if (playerSettings) {
       if (changed('rate')) this.rate = after.rate;
       this.highlight.configure({ follow: after.followInEditor, words: after.highlightWords });
-      this.post({
-        type: 'settings', rate: this.rate, highlightWords: after.highlightWords, followInEditor: after.followInEditor,
-        skipBack: after.skipBack, skipForward: after.skipForward, tableMode: after.tableMode, codeBlocks: after.codeBlocks
-      });
+      this.postSettings();
       this.showPosition();
       this.updateControls();
     }
+  }
+
+  private postSettings(): void {
+    const s = this.settings;
+    this.post({
+      type: 'settings', rate: this.rate, volume: s.volume, highlightWords: s.highlightWords, followInEditor: s.followInEditor,
+      skipBack: s.skipBack, skipForward: s.skipForward, tableMode: s.tableMode, codeBlocks: s.codeBlocks
+    });
   }
 
   /** Tables and code blocks in the document being read, for the Copilot CodeLens. */
@@ -692,7 +707,8 @@ export class Reader implements vscode.Disposable {
     return {
       loaded: !!this.reading, file: this.reading?.title, events: [...this.events], playing: this.playing, waiting: this.waiting,
       index: this.index, word: this.word, total: this.reading?.doc.utterances.length ?? 0, state: this.state, kind: this.kind, rate: this.rate,
-      viewVisible: this.view.visible, detached: this.highlight.isDetached, stale: !!this.reading?.stale, ...this.highlight.highlighted(),
+      viewVisible: this.view.visible, detached: this.highlight.isDetached, stale: !!this.reading?.stale, volume: this.volume, muted: this.muted,
+      ...this.highlight.highlighted(),
       expectedWord: this.word >= 0 ? this.reading?.doc.utterances[this.index]?.words[this.word]?.text : undefined
     };
   }

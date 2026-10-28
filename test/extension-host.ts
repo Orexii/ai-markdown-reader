@@ -23,6 +23,8 @@ interface State {
   expectedWord?: string;
   editors: number;
   stale: boolean;
+  volume: number;
+  muted: boolean;
 }
 
 const state = () => vscode.commands.executeCommand<State>('clearMarkdown.testState');
@@ -87,6 +89,12 @@ export async function run(): Promise<void> {
   await until(s => s.index === paused + 1, 'next sentence command');
   await vscode.commands.executeCommand('clearMarkdown.togglePlay');
   await until(s => s.playing, 'resume without another click');
+
+  // A volume changed in the Settings editor reaches the playing player.
+  await config.update('volume', 40, vscode.ConfigurationTarget.Global);
+  await until(s => s.volume === 40 && !s.muted, 'the volume setting to reach the player', 10_000);
+  await config.update('volume', undefined, vscode.ConfigurationTarget.Global);
+  await until(s => s.volume === 100, 'the default volume', 10_000);
 
   // Read from the cursor in the table: the reading moves there without rebuilding.
   editor.selection = new vscode.Selection(new vscode.Position(8, 9), new vscode.Position(8, 9));

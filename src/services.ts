@@ -14,6 +14,8 @@ export interface Settings {
   naturalVoice: string;
   systemVoice: string;
   rate: number;
+  /** Player volume in percent. */
+  volume: number;
   tableMode: 'rows' | 'columns';
   codeBlocks: 'announce' | 'read' | 'skip';
   followInEditor: boolean;
@@ -58,6 +60,7 @@ export class Services implements vscode.Disposable {
       // "voice" is the 0.1 setting name for system voices.
       systemVoice: config.get<string>('systemVoice', '') || config.get<string>('voice', ''),
       rate: nearestSpeed(config.get<number>('rate', 1)),
+      volume: Math.round(clamp(config.get<number>('volume', 100), 0, 100)),
       tableMode: config.get('tableMode') === 'columns' ? 'columns' : 'rows',
       codeBlocks: (['announce', 'read', 'skip'] as const).find(mode => mode === config.get('codeBlocks')) ?? 'announce',
       followInEditor: config.get<boolean>('followInEditor', true),

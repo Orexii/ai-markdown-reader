@@ -65,10 +65,11 @@ After that you can collapse it, close the sidebar or switch views, and reading c
 
 The section shows the current heading, a progress bar with heading marks and the time left, and
 buttons for previous sentence, back, play/pause, forward, next sentence, speed and settings (voice,
-how tables and code are read, word highlighting, following). With it focused, Space or K plays or
-pauses, ← / → or J / L skip, Shift+← / Shift+→ move by sentence, Shift+↑ / Shift+↓ by paragraph, and
-- / + change speed. You can drag the section anywhere, for example into the panel or the secondary
-side bar.
+how tables and code are read, word highlighting, following). On its right is a **vertical volume
+slider** with a mute button under it: drag it, scroll over it, or click a spot to jump there. With the
+section focused, Space or K plays or pauses, ← / → or J / L skip, Shift+← / Shift+→ move by sentence,
+Shift+↑ / Shift+↓ by paragraph, ↑ / ↓ change the volume, M mutes, and - / + change speed. You can drag
+the section anywhere, for example into the panel or the secondary side bar.
 
 ## How documents are read
 
@@ -140,6 +141,7 @@ the original narration. Don't use it for content you are not allowed to share.
 | `clearMarkdown.naturalQuality` | `best` | `best` (326 MB) or `compact` (92 MB, slightly lower quality) |
 | `clearMarkdown.systemVoice` | | Operating-system voice for the system engine |
 | `clearMarkdown.rate` | `1` | Speed: 0.5, 0.75, 1, 1.25, 1.5, 1.75 or 2; pitch preserved |
+| `clearMarkdown.volume` | `100` | Volume in percent; the player's slider changes it |
 | `clearMarkdown.skipBackSeconds` / `skipForwardSeconds` | `10` / `30` | Skip lengths |
 | `clearMarkdown.tableMode` | `rows` | `rows` or `columns` |
 | `clearMarkdown.codeBlocks` | `announce` | `announce`, `read` or `skip` |

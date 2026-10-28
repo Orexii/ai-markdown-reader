@@ -38,6 +38,15 @@
   let pendingOffset = 0;
   let pendingWord = null;
   let rate = 1;
+  /** Volume slider position (0–100) and mute, which keeps the position to restore. */
+  let volume = 100;
+  let muted = false;
+  let lastAudible = 100;
+  let draggingVolume = false;
+  let volumeTimer = 0;
+  /** A short message (such as the new volume) shown in the status line for a moment. */
+  let notice = '';
+  let noticeTimer = 0;
   let stale = false;
   let error = '';
   let unlocked = false;
@@ -583,12 +592,96 @@
     report(true);
     if (!persist) return;
     clearTimeout(rateTimer);
-    rateTimer = setTimeout(() => post({ type: 'setting', key: 'rate', value: rate }), 300);
+    rateTimer = setTimeout(() => {
+      rateTimer = 0;
+      post({ type: 'setting', key: 'rate', value: rate });
+    }, 300);
   }
 
   function stepRate(step) {
     const position = SPEEDS.indexOf(rate);
     setRate(SPEEDS[clamp((position < 0 ? SPEEDS.indexOf(1) : position) + step, 0, SPEEDS.length - 1)]);
+  }
+
+  function applyVolume() {
+    // Loudness is perceived roughly logarithmically: squaring the position makes the slider feel even.
+    const gain = (volume / 100) ** 2;
+    for (const player of players) {
+      player.el.volume = gain;
+      player.el.muted = muted;
+    }
+  }
+
+  function renderVolume() {
+    const slider = $('volume');
+    const silent = muted || volume === 0;
+    slider.style.setProperty('--level', String(volume / 100));
+    slider.setAttribute('aria-valuenow', String(volume));
+    slider.setAttribute('aria-valuetext', muted ? `Muted (${volume}%)` : `${volume}%`);
+    slider.title = muted ? `Muted (${volume}%). Drag to unmute.` : `Volume ${volume}% (↑ / ↓)`;
+    slider.parentElement.classList.toggle('muted', muted);
+    const level = silent ? 'off' : volume < 50 ? 'low' : 'high';
+    for (const svg of $('mute').querySelectorAll('svg')) {
+      if (svg.dataset.level === level) svg.removeAttribute('hidden');
+      else svg.setAttribute('hidden', '');
+    }
+    $('mute').setAttribute('aria-label', silent ? 'Unmute' : 'Mute');
+    $('mute').setAttribute('aria-pressed', String(silent));
+    $('mute').title = silent ? 'Unmute (M)' : 'Mute (M)';
+  }
+
+  function flash(text) {
+    notice = text;
+    clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(() => {
+      notice = '';
+      updateControls();
+    }, 1500);
+    updateControls();
+  }
+
+  /** Changes the volume from the player's own controls, unmuting, and saves it shortly after. */
+  function setVolume(value) {
+    const level = Math.round(clamp(Number(value) || 0, 0, 100));
+    volume = level;
+    if (level > 0) {
+      muted = false;
+      lastAudible = level;
+    }
+    applyVolume();
+    renderVolume();
+    flash(level ? `Volume ${level}%` : 'Muted');
+    report(true);
+    clearTimeout(volumeTimer);
+    volumeTimer = setTimeout(() => {
+      volumeTimer = 0;
+      post({ type: 'setting', key: 'volume', value: volume });
+    }, 300);
+  }
+
+  /** Applies a volume saved in the settings, unless the listener is changing it right now. */
+  function syncVolume(value) {
+    if (typeof value !== 'number' || !Number.isFinite(value) || draggingVolume || volumeTimer) return;
+    volume = Math.round(clamp(value, 0, 100));
+    if (volume > 0) lastAudible = volume;
+    applyVolume();
+    renderVolume();
+  }
+
+  const stepVolume = step => setVolume((muted ? 0 : volume) + step);
+
+  function toggleMute() {
+    if (muted || volume === 0) {
+      if (volume === 0) return setVolume(lastAudible || 50);
+      muted = false;
+      flash(`Volume ${volume}%`);
+    } else {
+      muted = true;
+      flash('Muted');
+    }
+    applyVolume();
+    renderVolume();
+    report(true);
   }
 
   function report(force) {
@@ -598,7 +691,7 @@
     lastReport = time;
     reported = { index, word, playing, waiting };
     if (navigator.mediaSession) navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
-    if (loaded) post({ type: 'position', revision, index, word, offset: offsetNow(), playing, waiting, finished, elapsed: now(), total: total(), rate });
+    if (loaded) post({ type: 'position', revision, index, word, offset: offsetNow(), playing, waiting, finished, elapsed: now(), total: total(), rate, volume, muted });
   }
 
   function setStatus(text) {
@@ -631,6 +724,7 @@
       $('section').title = heading;
     }
     if (error) setStatus(error);
+    else if (notice) setStatus(notice);
     else if (!loaded) setStatus('');
     else if (!ready) setStatus(engine.state === 'loading' ? engine.message || 'Starting the voice…' : '');
     else if (playing && waiting) setStatus('Preparing audio…');
@@ -778,6 +872,7 @@
     stale = false;
     error = '';
     setRate(settings.rate, false);
+    syncVolume(settings.volume);
     renderSettings();
     if (navigator.mediaSession && typeof MediaMetadata === 'function') {
       navigator.mediaSession.metadata = new MediaMetadata({ title: message.title || 'Markdown', artist: 'Clear Markdown Reader' });
@@ -837,7 +932,9 @@
 
   function onSettings(message) {
     Object.assign(settings, message);
-    if (Math.abs(message.rate - rate) > 0.001) setRate(message.rate, false);
+    // Ignore the echo of a speed the listener is still changing.
+    if (!rateTimer && Math.abs(message.rate - rate) > 0.001) setRate(message.rate, false);
+    syncVolume(message.volume);
     renderSettings();
     updateTime();
   }
@@ -893,6 +990,43 @@
   $('engine-switch').addEventListener('click', () => post({ type: engine.kind === 'system' ? 'useNatural' : 'useSystem' }));
   $('refresh').addEventListener('click', () => post({ type: 'refresh' }));
 
+  const slider = $('volume');
+  const volumeAt = pointer => {
+    const rect = $('volume-track').getBoundingClientRect();
+    if (rect.height > 0) setVolume(((rect.bottom - pointer.clientY) / rect.height) * 100);
+  };
+  slider.addEventListener('pointerdown', pointer => {
+    if (pointer.button) return;
+    draggingVolume = true;
+    try {
+      slider.setPointerCapture?.(pointer.pointerId);
+    } catch {
+      // Without capture the drag still works while the pointer stays over the slider.
+    }
+    pointer.preventDefault();
+    slider.focus();
+    volumeAt(pointer);
+  });
+  slider.addEventListener('pointermove', pointer => {
+    if (draggingVolume) volumeAt(pointer);
+  });
+  for (const name of ['pointerup', 'pointercancel', 'lostpointercapture']) slider.addEventListener(name, () => { draggingVolume = false; });
+  slider.addEventListener('keydown', keyEvent => {
+    const steps = { ArrowUp: 5, ArrowRight: 5, ArrowDown: -5, ArrowLeft: -5, PageUp: 20, PageDown: -20 };
+    if (keyEvent.key in steps) stepVolume(steps[keyEvent.key]);
+    else if (keyEvent.key === 'Home') setVolume(0);
+    else if (keyEvent.key === 'End') setVolume(100);
+    else return;
+    keyEvent.preventDefault();
+    keyEvent.stopPropagation();
+  });
+  slider.parentElement.addEventListener('wheel', wheelEvent => {
+    if (!wheelEvent.deltaY) return;
+    wheelEvent.preventDefault();
+    stepVolume(wheelEvent.deltaY < 0 ? 5 : -5);
+  }, { passive: false });
+  $('mute').addEventListener('click', toggleMute);
+
   document.addEventListener('keydown', keyEvent => {
     const target = keyEvent.target;
     if (keyEvent.key === 'Escape') {
@@ -910,8 +1044,9 @@
       k: toggle, K: toggle, j: back, J: back, l: forward, L: forward,
       ArrowLeft: () => (keyEvent.shiftKey ? sentence(-1) : back()),
       ArrowRight: () => (keyEvent.shiftKey ? sentence(1) : forward()),
-      ArrowUp: () => (keyEvent.shiftKey ? paragraph(-1) : false),
-      ArrowDown: () => (keyEvent.shiftKey ? paragraph(1) : false),
+      ArrowUp: () => (keyEvent.shiftKey ? paragraph(-1) : stepVolume(5)),
+      ArrowDown: () => (keyEvent.shiftKey ? paragraph(1) : stepVolume(-5)),
+      m: toggleMute, M: toggleMute,
       ',': () => sentence(-1), '.': () => sentence(1),
       '[': () => paragraph(-1), ']': () => paragraph(1),
       '-': () => stepRate(-1), _: () => stepRate(-1), '=': () => stepRate(1), '+': () => stepRate(1),
@@ -978,6 +1113,8 @@
     }
   });
 
+  applyVolume();
+  renderVolume();
   updateControls();
   updateTime();
   post({ type: 'ready' });

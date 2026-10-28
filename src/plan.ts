@@ -3,6 +3,8 @@ import { spokenLength } from './scheduler';
 
 export interface PlanSettings {
   rate: number;
+  /** Volume slider position, 0–100. */
+  volume: number;
   followInEditor: boolean;
   highlightWords: boolean;
   skipBack: number;

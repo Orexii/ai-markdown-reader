@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0
+
+- **Vertical volume slider** on the right of the Read Aloud player, with a mute button under it. Drag
+  it, scroll over it, or use ↑ / ↓ and M while the player has focus. The slider follows perceived
+  loudness, so its middle sounds about half as loud, and the level is remembered in
+  `clearMarkdown.volume`.
+
 ## 0.3.0
 
 - **No more separate reader page.** The text is highlighted in your own Markdown editor: the sentence

@@ -56,7 +56,7 @@ function player(markdown = SAMPLE, overrides: Partial<PlanSettings> = {}) {
   Object.assign(window, { acquireVsCodeApi: () => ({ postMessage: (message: Posted) => posted.push(JSON.parse(JSON.stringify(message, (_, v) => (v instanceof window.Uint8Array ? `bytes:${v.length}` : v))) as Posted) }) });
   window.eval(readFileSync('media/player.js', 'utf8'));
   const doc = buildDocument(markdown);
-  const settings: PlanSettings = { rate: 1, followInEditor: true, highlightWords: true, skipBack: 10, skipForward: 30, tableMode: 'rows', codeBlocks: 'announce', ...overrides };
+  const settings: PlanSettings = { rate: 1, volume: 100, followInEditor: true, highlightWords: true, skipBack: 10, skipForward: 30, tableMode: 'rows', codeBlocks: 'announce', ...overrides };
   const send = (data: object) => window.dispatchEvent(new window.MessageEvent('message', { data }));
   const $ = (id: string) => window.document.getElementById(id)!;
   const click = (id: string) => ($(id) as HTMLElement).click();
@@ -419,10 +419,77 @@ test('settings controls report changes to the extension', async () => {
     assert.deepEqual(p.last('setting'), { type: 'setting', key: 'followInEditor', value: false });
     p.click('engine-switch');
     assert.deepEqual(p.last('useSystem'), { type: 'useSystem' });
-    p.send({ type: 'settings', rate: 1.75, highlightWords: false, followInEditor: true, skipBack: 5, skipForward: 15, tableMode: 'rows', codeBlocks: 'announce' });
+    p.send({ type: 'settings', rate: 1.75, volume: 100, highlightWords: false, followInEditor: true, skipBack: 5, skipForward: 15, tableMode: 'rows', codeBlocks: 'announce' });
     assert.equal(p.audios[0]!.playbackRate, 1.75);
     assert.equal((p.$('words') as HTMLInputElement).checked, false);
     assert.equal(p.$('back').getAttribute('aria-label'), 'Back 5 seconds');
+  } finally {
+    await p.close();
+  }
+});
+
+test('the vertical volume slider drags, scrolls, steps with keys, mutes and is saved', async () => {
+  const p = player(SAMPLE, { volume: 64 });
+  try {
+    p.plan();
+    p.ready();
+    const slider = p.$('volume');
+    const gain = () => p.audios[0]!.volume;
+    assert.equal(slider.getAttribute('aria-orientation'), 'vertical');
+    assert.equal(slider.getAttribute('aria-valuenow'), '64');
+    assert.ok(Math.abs(gain() - 0.64 ** 2) < 1e-9, 'the slider maps to a perceptual gain');
+    assert.ok(p.audios.every(audio => audio.volume === gain()), 'both players share the volume');
+
+    // Dragging: the top of the track is 100%, the bottom 0%.
+    p.$('volume-track').getBoundingClientRect = () => ({ top: 0, bottom: 100, height: 100, left: 0, right: 3, width: 3, x: 0, y: 0, toJSON() {} });
+    slider.dispatchEvent(new p.window.MouseEvent('pointerdown', { bubbles: true, clientY: 75 }));
+    assert.equal(slider.getAttribute('aria-valuenow'), '25');
+    assert.match(p.$('status').textContent!, /Volume 25%/);
+    p.send({ type: 'settings', rate: 1, volume: 64, highlightWords: true, followInEditor: true, skipBack: 10, skipForward: 30, tableMode: 'rows', codeBlocks: 'announce' });
+    assert.equal(slider.getAttribute('aria-valuenow'), '25', 'an older saved value does not fight the drag');
+    slider.dispatchEvent(new p.window.MouseEvent('pointermove', { bubbles: true, clientY: 10 }));
+    slider.dispatchEvent(new p.window.MouseEvent('pointerup', { bubbles: true, clientY: 10 }));
+    assert.equal(slider.getAttribute('aria-valuenow'), '90');
+    assert.ok(Math.abs(gain() - 0.81) < 1e-9);
+    await p.wait(350);
+    assert.deepEqual(p.last('setting'), { type: 'setting', key: 'volume', value: 90 });
+
+    // Keys on the slider, the wheel, and the player's ↑ / ↓ and M shortcuts.
+    slider.dispatchEvent(new p.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    assert.equal(slider.getAttribute('aria-valuenow'), '85');
+    slider.dispatchEvent(new p.window.KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+    assert.equal(slider.getAttribute('aria-valuenow'), '100');
+    assert.equal(p.position().index, 0, 'keys on the slider do not also move the reading');
+    slider.parentElement!.dispatchEvent(new p.window.WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true }));
+    assert.equal(slider.getAttribute('aria-valuenow'), '95');
+    p.key('ArrowDown');
+    assert.equal(slider.getAttribute('aria-valuenow'), '90');
+    p.key('ArrowUp');
+    assert.equal(slider.getAttribute('aria-valuenow'), '95');
+    p.key('m');
+    assert.equal(p.audios[0]!.muted, true);
+    assert.equal(p.$('mute').getAttribute('aria-pressed'), 'true');
+    assert.match(slider.getAttribute('aria-valuetext')!, /Muted/);
+    assert.equal(p.position().muted, true);
+    p.click('mute');
+    assert.equal(p.audios[0]!.muted, false);
+    assert.equal(p.$('mute').getAttribute('aria-label'), 'Mute');
+
+    // Dragging to the bottom silences; the speaker then restores the last audible level.
+    slider.dispatchEvent(new p.window.MouseEvent('pointerdown', { bubbles: true, clientY: 100 }));
+    slider.dispatchEvent(new p.window.MouseEvent('pointerup', { bubbles: true, clientY: 100 }));
+    assert.equal(slider.getAttribute('aria-valuenow'), '0');
+    assert.equal(p.$('mute').getAttribute('aria-label'), 'Unmute');
+    assert.ok(!p.$('mute').querySelector('svg[data-level="off"]')!.hasAttribute('hidden'), 'the speaker shows silence');
+    p.click('mute');
+    assert.equal(slider.getAttribute('aria-valuenow'), '95');
+
+    // A volume saved elsewhere (Settings editor, another window) is applied once the listener is done.
+    await p.wait(350);
+    p.send({ type: 'settings', rate: 1, volume: 30, highlightWords: true, followInEditor: true, skipBack: 10, skipForward: 30, tableMode: 'rows', codeBlocks: 'announce' });
+    assert.equal(slider.getAttribute('aria-valuenow'), '30');
+    assert.ok(Math.abs(gain() - 0.09) < 1e-9);
+    assert.ok(!p.$('mute').querySelector('svg[data-level="low"]')!.hasAttribute('hidden'), 'a low level shows one wave');
   } finally {
     await p.close();
   }
