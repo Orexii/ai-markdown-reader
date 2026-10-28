@@ -43,11 +43,11 @@ p {
   display: none !important;
 }
 
-/* Layout: the transport fills the width; an always-visible volume pill, if used, sits on the right. */
+/* Layout: the transport fills the width and the thin volume slider sits on the right. */
 .deck {
   display: flex;
   align-items: stretch;
-  gap: 10px;
+  gap: 8px;
 }
 
 .transport {
@@ -148,26 +148,29 @@ p {
   font-variant-numeric: tabular-nums;
 }
 
-/* One row of controls that never wraps; narrow views drop the sentence buttons (Shift+←/→ still work). */
+/* Controls: the transport buttons, then speed and settings. If the view is too narrow for one row,
+   speed and settings move to a second, centred row; only very narrow views hide the paragraph buttons. */
 .controls {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 2px 8px;
   margin-top: 2px;
 }
 
-@container (max-width: 250px) {
-  #previous,
-  #next,
-  .spacer {
-    display: none;
-  }
+.buttons,
+.extras {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
-.spacer {
-  flex: none;
-  width: 6px;
+@container (max-width: 160px) {
+  #previous,
+  #next {
+    display: none;
+  }
 }
 
 .icon {
@@ -175,8 +178,8 @@ p {
   flex: none;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   padding: 0;
   border: none;
   border-radius: 6px;
@@ -208,9 +211,9 @@ p {
 }
 
 .icon.primary {
-  width: 36px;
-  height: 36px;
-  margin: 0 6px;
+  width: 34px;
+  height: 34px;
+  margin: 0 4px;
   border-radius: 50%;
   color: var(--accent-foreground);
   background: var(--accent);
@@ -278,39 +281,39 @@ p {
   text-align: center;
 }
 
-/* Volume: a vertical pill that fills from the bottom; --level (0-1) is set by the script. */
+/* Volume: a thin vertical slider like the progress bar, with the speaker under it to mute.
+   --level (0-1) is set by the script. */
 .volume-control {
   --level: 1;
-  position: relative;
+  display: flex;
   flex: none;
-  align-self: stretch;
-  width: 30px;
-  min-height: 76px;
-  max-height: 124px;
-  margin: 2px 0;
-  border-radius: 15px;
-  overflow: hidden;
-  background: var(--track);
-}
-
-.volume-control:has(.volume-slider:focus-visible) {
-  outline: 1px solid var(--vscode-focusBorder);
-  outline-offset: 1px;
-}
-
-.volume-slider,
-.volume-track {
-  position: absolute;
-  inset: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 22px;
+  /* Centres the speaker on the controls row: the status line (16px) plus half the play button's extra height. */
+  margin-bottom: 22px;
 }
 
 .volume-slider {
+  position: relative;
+  flex: 1;
+  width: 22px;
+  min-height: 44px;
+  border-radius: 4px;
   cursor: pointer;
   touch-action: none;
 }
 
-.volume-slider:focus-visible {
-  outline: none;
+.volume-track {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 50%;
+  width: 4px;
+  border-radius: 2px;
+  background: var(--track);
+  transform: translateX(-50%);
 }
 
 .volume-fill {
@@ -319,68 +322,50 @@ p {
   bottom: 0;
   left: 0;
   height: calc(var(--level) * 100%);
+  border-radius: 2px;
   background: var(--accent);
-  transition: height 0.06s linear;
 }
 
-.volume-control.muted .volume-fill {
-  background: color-mix(in srgb, var(--muted) 55%, transparent);
-}
-
-/* The level, shown at the top while the pill is hovered or focused. */
-.volume-value {
+.volume-thumb {
   position: absolute;
-  top: 7px;
-  right: 0;
-  left: 0;
-  color: var(--vscode-foreground);
-  font-size: 10px;
-  line-height: 12px;
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.12s ease;
-}
-
-.volume-control:hover .volume-value,
-.volume-control:focus-within .volume-value {
-  opacity: 0.9;
-}
-
-.volume-control.full .volume-value {
-  color: var(--accent-foreground);
-}
-
-/* The speaker at the bottom of the pill mutes and unmutes. */
-.mute {
-  position: absolute;
-  bottom: 3px;
+  bottom: calc(6px + var(--level) * (100% - 12px));
   left: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translate(-50%, 50%);
+  transition: transform 0.12s ease;
+  pointer-events: none;
+}
+
+.volume-slider:hover .volume-thumb,
+.volume-slider:focus-visible .volume-thumb {
+  transform: translate(-50%, 50%) scale(1.2);
+}
+
+.volume-control.muted .volume-fill,
+.volume-control.muted .volume-thumb {
+  background: var(--muted);
+}
+
+.mute {
   display: inline-flex;
+  flex: none;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   padding: 0;
   border: none;
-  border-radius: 12px;
-  color: var(--vscode-foreground);
+  border-radius: 6px;
+  color: var(--icon);
   background: transparent;
-  transform: translateX(-50%);
   cursor: pointer;
 }
 
-.volume-control.covered .mute {
-  color: var(--accent-foreground);
-}
-
 .mute:hover {
-  background: color-mix(in srgb, currentColor 18%, transparent);
-}
-
-.mute:focus-visible {
-  outline-offset: -1px;
+  background: var(--hover);
 }
 
 .mute svg {

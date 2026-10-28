@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.2
+
+- **Paragraph buttons.** The |◀ and ▶| buttons now skip to the previous and next paragraph (list
+  items, headings and tables count as paragraphs), as do headset and keyboard previous/next track
+  keys. Previous goes to the start of the current paragraph first. Sentence steps stay on Shift+← /
+  Shift+→. The buttons stay visible in narrow sidebars: speed and settings move to a second row
+  instead.
+- **A thin volume slider** that matches the progress bar, with the speaker under it, level with the
+  play controls.
+
 ## 0.4.1
 
 - **A cleaner player.** The volume is now a rounded vertical pill on the right that fills from the

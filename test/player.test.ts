@@ -237,23 +237,33 @@ test('time skips cross passages using real and estimated durations', async () =>
   }
 });
 
-test('sentence and paragraph navigation from buttons and keys', async () => {
+test('the |◀ ▶| buttons skip by paragraph; keys move by sentence or paragraph', async () => {
   const p = player();
   try {
     p.plan();
     p.ready();
-    const at = () => p.position().index;
+    const at = () => p.position().index as number;
+    const firstOf = (block: number) => p.doc.utterances.findIndex(u => u.block === block);
+    const blockAt = () => p.doc.utterances[at()]!.block;
+    assert.equal(p.$('next').getAttribute('aria-label'), 'Next paragraph');
+    assert.equal(p.$('previous').getAttribute('aria-label'), 'Previous paragraph');
     p.click('next');
-    assert.equal(at(), 1);
+    assert.equal(at(), firstOf(1), 'next paragraph from the heading');
+    p.click('next');
+    assert.equal(at(), firstOf(2), 'skips the rest of a two-sentence paragraph');
+    p.click('previous');
+    assert.equal(at(), firstOf(1), 'at the start of a paragraph, goes to the previous one');
     p.key('ArrowRight', { shiftKey: true });
-    assert.equal(at(), 2);
-    p.key('ArrowLeft', { shiftKey: true });
-    assert.equal(at(), 1);
+    assert.equal(at(), firstOf(1) + 1, 'Shift+→ moves one sentence');
+    assert.equal(blockAt(), 1);
+    p.click('previous');
+    assert.equal(at(), firstOf(1), 'inside a paragraph, goes back to its start');
     p.key('ArrowDown', { shiftKey: true });
-    const nextBlock = p.doc.utterances.findIndex(u => u.block > p.doc.utterances[1]!.block);
-    assert.equal(at(), nextBlock);
+    assert.equal(at(), firstOf(2));
+    p.key('ArrowLeft', { shiftKey: true });
+    assert.equal(at(), firstOf(2) - 1, 'Shift+← moves one sentence back');
     p.key('ArrowUp', { shiftKey: true });
-    assert.equal(at(), 1, 'back to the start of the previous paragraph');
+    assert.equal(at(), firstOf(1), 'Shift+↑ goes to the start of the paragraph');
     p.key('Home');
     assert.equal(at(), 0);
     assert.equal(p.$('section').textContent, 'Heading');
@@ -440,8 +450,7 @@ test('the vertical volume slider drags, scrolls, steps with keys, mutes and is s
     const gain = () => p.audios[0]!.volume;
     assert.equal(slider.getAttribute('aria-orientation'), 'vertical');
     assert.equal(slider.getAttribute('aria-valuenow'), '64');
-    assert.equal(control.style.getPropertyValue('--level'), '0.64', 'the pill is filled to the level');
-    assert.equal(p.$('volume-value').textContent, '64');
+    assert.equal(control.style.getPropertyValue('--level'), '0.64', 'the slider is filled to the level');
     assert.ok(Math.abs(gain() - 0.64 ** 2) < 1e-9, 'the slider maps to a perceptual gain');
     assert.ok(p.audios.every(audio => audio.volume === gain()), 'both players share the volume');
 
@@ -475,8 +484,7 @@ test('the vertical volume slider drags, scrolls, steps with keys, mutes and is s
     assert.equal(p.audios[0]!.muted, true);
     assert.equal(p.$('mute').getAttribute('aria-pressed'), 'true');
     assert.match(slider.getAttribute('aria-valuetext')!, /Muted/);
-    assert.ok(control.classList.contains('muted'), 'a muted pill keeps its level but is greyed');
-    assert.equal(p.$('volume-value').textContent, 'Off');
+    assert.ok(control.classList.contains('muted'), 'a muted slider keeps its level but is greyed');
     assert.equal(p.position().muted, true);
     p.click('mute');
     assert.equal(p.audios[0]!.muted, false);

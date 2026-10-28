@@ -2,7 +2,7 @@
   "name": "clear-markdown-reader",
   "displayName": "Clear Markdown Reader",
   "description": "Listen to Markdown with a natural neural voice that runs on your computer. The editor highlights each sentence and word as it is read, tables and lists sound natural, and small podcast-style controls sit in the status bar.",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "publisher": "orexii",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -475,7 +475,7 @@
           "default": 100,
           "minimum": 0,
           "maximum": 100,
-          "description": "Reading volume in percent. The volume pill in the Read Aloud player changes this."
+          "description": "Reading volume in percent. The volume slider in the Read Aloud player changes this."
         },
         "clearMarkdown.skipBackSeconds": {
           "type": "number",

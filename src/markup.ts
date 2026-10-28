@@ -28,11 +28,11 @@ function icon(name: string, label = '', attributes = ''): string {
 
 export const formatSpeed = (speed: number) => `${Number(speed.toFixed(2))}×`;
 
-/** The volume control: an always-visible vertical pill that fills from the bottom, with the speaker inside it. */
+/** The volume control: a thin vertical slider styled like the progress bar, with the speaker under it to mute. */
 function volumeMarkup(): string {
   const icons = `${icon('volumeHigh', '', 'data-level="high"')}${icon('volumeLow', '', 'data-level="low" hidden')}${icon('volumeOff', '', 'data-level="off" hidden')}`;
   return `<div id="volume-control" class="volume-control">
-<div id="volume" class="volume-slider" role="slider" tabindex="0" aria-label="Volume" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" aria-valuetext="100%"><div id="volume-track" class="volume-track"><div class="volume-fill"></div></div><span id="volume-value" class="volume-value">100</span></div>
+<div id="volume" class="volume-slider" role="slider" tabindex="0" aria-label="Volume" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" aria-valuetext="100%"><div id="volume-track" class="volume-track"><div class="volume-fill"></div></div><div class="volume-thumb"></div></div>
 <button id="mute" class="mute" title="Mute (M)" aria-label="Mute" aria-pressed="false">${icons}</button>
 </div>`;
 }
@@ -59,14 +59,17 @@ export function playerMarkup(options: MarkupOptions): string {
 <div class="timeline"><input id="seek" type="range" min="0" max="1" step="0.1" value="0" aria-label="Position"><div id="chapters" class="chapters" aria-hidden="true"></div></div>
 <div class="times"><span id="elapsed"></span><span id="remaining"></span></div>
 <div class="controls">
-<button id="previous" class="icon" title="Previous sentence (Shift+←)" aria-label="Previous sentence">${icon('previous')}</button>
+<div class="buttons">
+<button id="previous" class="icon" title="Previous paragraph (Shift+↑)" aria-label="Previous paragraph">${icon('previous')}</button>
 <button id="back" class="icon" title="Back ${options.skipBack} seconds (← or J)" aria-label="Back ${options.skipBack} seconds">${icon('back', String(options.skipBack))}</button>
 <button id="play" class="icon primary" title="Play (Space)" aria-label="Play">${icon('play')}</button>
 <button id="forward" class="icon" title="Forward ${options.skipForward} seconds (→ or L)" aria-label="Forward ${options.skipForward} seconds">${icon('forward', String(options.skipForward))}</button>
-<button id="next" class="icon" title="Next sentence (Shift+→)" aria-label="Next sentence">${icon('next')}</button>
-<span class="spacer"></span>
+<button id="next" class="icon" title="Next paragraph (Shift+↓)" aria-label="Next paragraph">${icon('next')}</button>
+</div>
+<div class="extras">
 <select id="rate" class="rate" title="Speed (- / +)" aria-label="Speed">${speeds}</select>
 <button id="more" class="icon" title="Reading settings" aria-label="Reading settings" aria-expanded="false">${icon('settings')}</button>
+</div>
 </div>
 <p id="status" class="status" role="status" aria-live="polite"></p>
 </div>

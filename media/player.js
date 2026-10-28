@@ -616,14 +616,8 @@
     const slider = $('volume');
     const control = $('volume-control');
     const silent = muted || volume === 0;
-    const level = volume / 100;
-    control.style.setProperty('--level', String(level));
+    control.style.setProperty('--level', String(volume / 100));
     control.classList.toggle('muted', muted);
-    // The pill's speaker sits at its bottom: switch it to the accent text color once the fill covers it.
-    const height = control.clientHeight;
-    control.classList.toggle('covered', !muted && height > 0 && level * height >= 22);
-    control.classList.toggle('full', !muted && height > 0 && level * height >= height - 18);
-    $('volume-value').textContent = muted ? 'Off' : String(volume);
     slider.setAttribute('aria-valuenow', String(volume));
     slider.setAttribute('aria-valuetext', muted ? `Muted (${volume}%)` : `${volume}%`);
     slider.title = muted ? `Muted (${volume}%). Drag to unmute.` : `Volume ${volume}% (↑ / ↓)`;
@@ -981,8 +975,8 @@
   $('play').addEventListener('click', toggle);
   $('back').addEventListener('click', () => seekTo(now() - settings.skipBack));
   $('forward').addEventListener('click', () => seekTo(now() + settings.skipForward));
-  $('previous').addEventListener('click', () => sentence(-1));
-  $('next').addEventListener('click', () => sentence(1));
+  $('previous').addEventListener('click', () => paragraph(-1));
+  $('next').addEventListener('click', () => paragraph(1));
   $('seek').addEventListener('input', () => {
     scrubbing = true;
     $('elapsed').textContent = clock(Number($('seek').value));
@@ -1043,8 +1037,6 @@
     stepVolume(wheelEvent.deltaY < 0 ? 5 : -5);
   }, { passive: false });
   $('mute').addEventListener('click', toggleMute);
-  // The speaker's colour depends on how much of the pill is filled, which changes with the view's height.
-  window.addEventListener('resize', renderVolume);
 
   document.addEventListener('keydown', keyEvent => {
     const target = keyEvent.target;
@@ -1091,8 +1083,8 @@
       play, pause, stop: pause,
       seekbackward: () => seekTo(now() - settings.skipBack),
       seekforward: () => seekTo(now() + settings.skipForward),
-      previoustrack: () => sentence(-1),
-      nexttrack: () => sentence(1)
+      previoustrack: () => paragraph(-1),
+      nexttrack: () => paragraph(1)
     };
     for (const [action, handler] of Object.entries(handlers)) {
       try {

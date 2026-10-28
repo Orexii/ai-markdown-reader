@@ -53,8 +53,9 @@ file is being read, **Read Aloud from Cursor** jumps straight to the word under 
 
 Keys work from anywhere while a file is being read: `Ctrl+Alt+P` play/pause, `Ctrl+Alt+,` back,
 `Ctrl+Alt+.` forward (`Ctrl+Cmd+…` on macOS). Headset and keyboard media keys work where the system
-supports them. Every control is also a **Clear Markdown** command in the Command Palette (previous and
-next sentence or paragraph, faster, slower, voice, speed), so you can assign your own keys.
+supports them; their previous and next track keys skip by paragraph. Every control is also a
+**Clear Markdown** command in the Command Palette (previous and next sentence or paragraph, faster,
+slower, voice, speed), so you can assign your own keys.
 
 ### The Read Aloud player
 
@@ -64,13 +65,15 @@ The first time you read in a window, it opens and shows **Start reading**: click
 After that you can collapse it, close the sidebar or switch views, and reading carries on.
 
 The section shows the current heading, a progress bar with heading marks and the time left, and
-buttons for previous sentence, back, play/pause, forward, next sentence, speed and settings (voice,
-how tables and code are read, word highlighting, following). On its right is a **vertical volume
-pill** that fills from the bottom: drag it, click a spot or scroll over it, and click the speaker
-inside it to mute. With the section focused, Space or K plays or pauses, ← / → or J / L skip,
-Shift+← / Shift+→ move by sentence, Shift+↑ / Shift+↓ by paragraph, ↑ / ↓ change the volume, M mutes,
-and - / + change speed. In a narrow sidebar the sentence buttons are hidden so the controls stay on
-one row. You can drag the section anywhere, for example into the panel or the secondary side bar.
+buttons for previous paragraph, back 10 seconds, play/pause, forward 30 seconds, next paragraph, speed
+and settings (voice, how tables and code are read, word highlighting, following). Previous paragraph
+goes back to the start of the current paragraph first, like the previous-track button of a music
+player. On the right is a thin **vertical volume slider** with the speaker under it: drag it, click a
+spot or scroll over it, and click the speaker to mute. With the section focused, Space or K plays or
+pauses, ← / → or J / L skip, Shift+← / Shift+→ move by sentence, Shift+↑ / Shift+↓ by paragraph, ↑ / ↓
+change the volume, M mutes, and - / + change speed. If the sidebar is too narrow for one row, speed
+and settings move to a second row. You can drag the section anywhere, for example into the panel or
+the secondary side bar.
 
 ## How documents are read
 
