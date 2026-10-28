@@ -28,6 +28,15 @@ function icon(name: string, label = '', attributes = ''): string {
 
 export const formatSpeed = (speed: number) => `${Number(speed.toFixed(2))}×`;
 
+/** The volume control: an always-visible vertical pill that fills from the bottom, with the speaker inside it. */
+function volumeMarkup(): string {
+  const icons = `${icon('volumeHigh', '', 'data-level="high"')}${icon('volumeLow', '', 'data-level="low" hidden')}${icon('volumeOff', '', 'data-level="off" hidden')}`;
+  return `<div id="volume-control" class="volume-control">
+<div id="volume" class="volume-slider" role="slider" tabindex="0" aria-label="Volume" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" aria-valuetext="100%"><div id="volume-track" class="volume-track"><div class="volume-fill"></div></div><span id="volume-value" class="volume-value">100</span></div>
+<button id="mute" class="mute" title="Mute (M)" aria-label="Mute" aria-pressed="false">${icons}</button>
+</div>`;
+}
+
 /** The compact player shown in the Read Aloud view. The text itself is highlighted in the editor. */
 export function playerMarkup(options: MarkupOptions): string {
   const speeds = SPEEDS.map(speed => `<option value="${speed}"${speed === 1 ? ' selected' : ''}>${formatSpeed(speed)}</option>`).join('');
@@ -43,7 +52,6 @@ export function playerMarkup(options: MarkupOptions): string {
 <button id="start-button" class="primary-button start-button">${icon('play')}<span>Start reading</span></button>
 <p>VS Code needs one click here before it can play sound. After that, use the controls anywhere.</p>
 </div>
-<p id="idle" class="idle">Open a Markdown file and press Play. The text is highlighted in the editor as it is read.</p>
 <main class="player" aria-label="Player">
 <div class="deck">
 <div class="transport">
@@ -56,15 +64,13 @@ export function playerMarkup(options: MarkupOptions): string {
 <button id="play" class="icon primary" title="Play (Space)" aria-label="Play">${icon('play')}</button>
 <button id="forward" class="icon" title="Forward ${options.skipForward} seconds (→ or L)" aria-label="Forward ${options.skipForward} seconds">${icon('forward', String(options.skipForward))}</button>
 <button id="next" class="icon" title="Next sentence (Shift+→)" aria-label="Next sentence">${icon('next')}</button>
+<span class="spacer"></span>
 <select id="rate" class="rate" title="Speed (- / +)" aria-label="Speed">${speeds}</select>
 <button id="more" class="icon" title="Reading settings" aria-label="Reading settings" aria-expanded="false">${icon('settings')}</button>
 </div>
 <p id="status" class="status" role="status" aria-live="polite"></p>
 </div>
-<div class="volume">
-<div id="volume" class="volume-slider" role="slider" tabindex="0" aria-label="Volume" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" aria-valuetext="100%" title="Volume (↑ / ↓)"><div id="volume-track" class="volume-track"><div class="volume-fill"></div></div><div class="volume-thumb"></div></div>
-<button id="mute" class="icon small" title="Mute (M)" aria-label="Mute" aria-pressed="false">${icon('volumeHigh', '', 'data-level="high"')}${icon('volumeLow', '', 'data-level="low" hidden')}${icon('volumeOff', '', 'data-level="off" hidden')}</button>
-</div>
+${volumeMarkup()}
 </div>
 <div id="settings" class="settings" hidden>
 <label>Voice <select id="voice"></select></label>

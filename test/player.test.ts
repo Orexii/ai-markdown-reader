@@ -267,10 +267,12 @@ test('host commands seek to a word, and Play with nothing loaded asks to read th
   try {
     p.click('play');
     assert.deepEqual(p.last('readActive'), { type: 'readActive' });
-    assert.equal(p.$('idle').hidden, false);
+    assert.match(p.$('section').textContent!, /Open a Markdown file/, 'the empty player says how to start');
+    assert.ok(p.$('section').classList.contains('hint'));
     p.plan();
     p.ready();
-    assert.equal(p.$('idle').hidden, true);
+    assert.equal(p.$('section').textContent, 'Heading');
+    assert.ok(!p.$('section').classList.contains('hint'));
     p.send({ type: 'command', action: 'seek', index: 2, word: 1, play: true });
     assert.equal((p.last('need')!.indices as number[])[0], 2);
     p.audioFor(2, 4);
@@ -279,7 +281,7 @@ test('host commands seek to a word, and Play with nothing loaded asks to read th
     p.send({ type: 'command', action: 'pause' });
     assert.equal(p.position().playing, false);
     p.send({ type: 'idle' });
-    assert.equal(p.$('idle').hidden, false);
+    assert.match(p.$('section').textContent!, /Open a Markdown file/);
     assert.equal(p.current().paused, true);
   } finally {
     await p.close();
@@ -434,9 +436,12 @@ test('the vertical volume slider drags, scrolls, steps with keys, mutes and is s
     p.plan();
     p.ready();
     const slider = p.$('volume');
+    const control = p.$('volume-control');
     const gain = () => p.audios[0]!.volume;
     assert.equal(slider.getAttribute('aria-orientation'), 'vertical');
     assert.equal(slider.getAttribute('aria-valuenow'), '64');
+    assert.equal(control.style.getPropertyValue('--level'), '0.64', 'the pill is filled to the level');
+    assert.equal(p.$('volume-value').textContent, '64');
     assert.ok(Math.abs(gain() - 0.64 ** 2) < 1e-9, 'the slider maps to a perceptual gain');
     assert.ok(p.audios.every(audio => audio.volume === gain()), 'both players share the volume');
 
@@ -470,10 +475,13 @@ test('the vertical volume slider drags, scrolls, steps with keys, mutes and is s
     assert.equal(p.audios[0]!.muted, true);
     assert.equal(p.$('mute').getAttribute('aria-pressed'), 'true');
     assert.match(slider.getAttribute('aria-valuetext')!, /Muted/);
+    assert.ok(control.classList.contains('muted'), 'a muted pill keeps its level but is greyed');
+    assert.equal(p.$('volume-value').textContent, 'Off');
     assert.equal(p.position().muted, true);
     p.click('mute');
     assert.equal(p.audios[0]!.muted, false);
     assert.equal(p.$('mute').getAttribute('aria-label'), 'Mute');
+    assert.ok(!control.classList.contains('muted'));
 
     // Dragging to the bottom silences; the speaker then restores the last audible level.
     slider.dispatchEvent(new p.window.MouseEvent('pointerdown', { bubbles: true, clientY: 100 }));

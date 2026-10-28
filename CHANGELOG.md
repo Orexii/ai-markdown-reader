@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.1
+
+- **A cleaner player.** The volume is now a rounded vertical pill on the right that fills from the
+  bottom in the accent color, with the speaker inside it to mute and the level shown on hover. The
+  controls always stay on one row (narrow sidebars drop the sentence buttons), the played part of the
+  progress bar is filled, the empty player shows a one-line hint, and the view no longer needs a
+  scrollbar. High contrast themes use their contrast color for the fills.
+
 ## 0.4.0
 
 - **Vertical volume slider** on the right of the Read Aloud player, with a mute button under it. Drag

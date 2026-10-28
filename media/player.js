@@ -614,15 +614,22 @@
 
   function renderVolume() {
     const slider = $('volume');
+    const control = $('volume-control');
     const silent = muted || volume === 0;
-    slider.style.setProperty('--level', String(volume / 100));
+    const level = volume / 100;
+    control.style.setProperty('--level', String(level));
+    control.classList.toggle('muted', muted);
+    // The pill's speaker sits at its bottom: switch it to the accent text color once the fill covers it.
+    const height = control.clientHeight;
+    control.classList.toggle('covered', !muted && height > 0 && level * height >= 22);
+    control.classList.toggle('full', !muted && height > 0 && level * height >= height - 18);
+    $('volume-value').textContent = muted ? 'Off' : String(volume);
     slider.setAttribute('aria-valuenow', String(volume));
     slider.setAttribute('aria-valuetext', muted ? `Muted (${volume}%)` : `${volume}%`);
     slider.title = muted ? `Muted (${volume}%). Drag to unmute.` : `Volume ${volume}% (↑ / ↓)`;
-    slider.parentElement.classList.toggle('muted', muted);
-    const level = silent ? 'off' : volume < 50 ? 'low' : 'high';
+    const icon = silent ? 'off' : volume < 50 ? 'low' : 'high';
     for (const svg of $('mute').querySelectorAll('svg')) {
-      if (svg.dataset.level === level) svg.removeAttribute('hidden');
+      if (svg.dataset.level === icon) svg.removeAttribute('hidden');
       else svg.setAttribute('hidden', '');
     }
     $('mute').setAttribute('aria-label', silent ? 'Unmute' : 'Mute');
@@ -717,8 +724,9 @@
     play.classList.toggle('waiting', playing && waiting);
     play.disabled = loaded && !ready;
     for (const id of ['back', 'forward', 'previous', 'next', 'seek']) $(id).disabled = !ready;
-    $('idle').hidden = loaded;
-    const heading = loaded ? section() : '';
+    // With nothing loaded, the heading line says how to start instead.
+    const heading = loaded ? section() : 'Open a Markdown file and press Play';
+    $('section').classList.toggle('hint', !loaded);
     if ($('section').textContent !== heading) {
       $('section').textContent = heading;
       $('section').title = heading;
@@ -740,10 +748,17 @@
       $('seek').max = String(Math.max(1, length));
       $('seek').value = String(elapsed);
       $('elapsed').textContent = loaded ? clock(elapsed) : '';
+      showProgress(length ? elapsed / length : 0);
     }
     $('seek').setAttribute('aria-valuetext', `${clock(elapsed)} of ${clock(length)}`);
     $('remaining').textContent = loaded ? `${estimated ? '~' : ''}${clock((length - elapsed) / rate)} left` : '';
     $('remaining').title = estimated ? 'Estimated time left at this speed; it becomes exact as audio is prepared' : 'Time left at this speed';
+  }
+
+  /** Fills the played part of the timeline; the thumb's 12px width is allowed for so the fill meets its centre. */
+  function showProgress(fraction) {
+    const value = clamp(fraction, 0, 1);
+    $('seek').style.setProperty('--progress', `calc(${(value * 100).toFixed(3)}% + ${(6 - value * 12).toFixed(2)}px)`);
   }
 
   function renderChapters() {
@@ -971,6 +986,7 @@
   $('seek').addEventListener('input', () => {
     scrubbing = true;
     $('elapsed').textContent = clock(Number($('seek').value));
+    showProgress(Number($('seek').value) / Math.max(1, Number($('seek').max)));
   });
   $('seek').addEventListener('change', () => {
     scrubbing = false;
@@ -991,6 +1007,7 @@
   $('refresh').addEventListener('click', () => post({ type: 'refresh' }));
 
   const slider = $('volume');
+  const control = $('volume-control');
   const volumeAt = pointer => {
     const rect = $('volume-track').getBoundingClientRect();
     if (rect.height > 0) setVolume(((rect.bottom - pointer.clientY) / rect.height) * 100);
@@ -1020,12 +1037,14 @@
     keyEvent.preventDefault();
     keyEvent.stopPropagation();
   });
-  slider.parentElement.addEventListener('wheel', wheelEvent => {
+  control.addEventListener('wheel', wheelEvent => {
     if (!wheelEvent.deltaY) return;
     wheelEvent.preventDefault();
     stepVolume(wheelEvent.deltaY < 0 ? 5 : -5);
   }, { passive: false });
   $('mute').addEventListener('click', toggleMute);
+  // The speaker's colour depends on how much of the pill is filled, which changes with the view's height.
+  window.addEventListener('resize', renderVolume);
 
   document.addEventListener('keydown', keyEvent => {
     const target = keyEvent.target;

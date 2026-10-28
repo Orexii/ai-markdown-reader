@@ -66,10 +66,11 @@ After that you can collapse it, close the sidebar or switch views, and reading c
 The section shows the current heading, a progress bar with heading marks and the time left, and
 buttons for previous sentence, back, play/pause, forward, next sentence, speed and settings (voice,
 how tables and code are read, word highlighting, following). On its right is a **vertical volume
-slider** with a mute button under it: drag it, scroll over it, or click a spot to jump there. With the
-section focused, Space or K plays or pauses, ← / → or J / L skip, Shift+← / Shift+→ move by sentence,
-Shift+↑ / Shift+↓ by paragraph, ↑ / ↓ change the volume, M mutes, and - / + change speed. You can drag
-the section anywhere, for example into the panel or the secondary side bar.
+pill** that fills from the bottom: drag it, click a spot or scroll over it, and click the speaker
+inside it to mute. With the section focused, Space or K plays or pauses, ← / → or J / L skip,
+Shift+← / Shift+→ move by sentence, Shift+↑ / Shift+↓ by paragraph, ↑ / ↓ change the volume, M mutes,
+and - / + change speed. In a narrow sidebar the sentence buttons are hidden so the controls stay on
+one row. You can drag the section anywhere, for example into the panel or the secondary side bar.
 
 ## How documents are read
 
