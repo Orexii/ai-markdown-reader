@@ -1,9 +1,9 @@
 # Clear Markdown Reader
 
-Listen to Markdown in VS Code with a **natural neural voice that runs on your computer**. Your own
-editor highlights each sentence and word as it is spoken and scrolls along with the voice. Small
-podcast-style controls sit in the status bar: back 10 seconds, forward 30, play/pause and speed from
-0.5× to 2× in quarter steps.
+Listen to Markdown in VS Code with a **natural neural voice that runs on your computer**. Your editor,
+or the rendered **Read Aloud Preview**, highlights each sentence and word as it is spoken and scrolls
+along with the voice. Small podcast-style controls sit in the status bar: back 10 seconds, forward 30,
+play/pause and speed from 0.5× to 3× in quarter steps.
 
 Tables are read with their column names, bullet points flow as sentences, and technical text such as
 `ANFObservabilityDB`, `IcM`, `v1.2.3` or `$12.50` is pronounced the way people say it.
@@ -49,13 +49,27 @@ file is being read, **Read Aloud from Cursor** jumps straight to the word under 
 | ↺ 10 | Back 10 seconds (`clearMarkdown.skipBackSeconds`) |
 | ▶ / ⏸ 0:42 / 5:10 | Play or pause; hover for Stop and the player |
 | 30 ↻ | Forward 30 seconds (`clearMarkdown.skipForwardSeconds`) |
-| 1× | Speed: 0.5×, 0.75×, 1×, 1.25×, 1.5×, 1.75× or 2× |
+| 1× | Speed: 0.5× to 3× in quarter steps |
 
 Keys work from anywhere while a file is being read: `Ctrl+Alt+P` play/pause, `Ctrl+Alt+,` back,
 `Ctrl+Alt+.` forward (`Ctrl+Cmd+…` on macOS). Headset and keyboard media keys work where the system
 supports them; their previous and next track keys skip by paragraph. Every control is also a
 **Clear Markdown** command in the Command Palette (previous and next sentence or paragraph, faster,
 slower, voice, speed), so you can assign your own keys.
+
+### Reading the rendered preview
+
+You can also listen while looking at the rendered Markdown. The **Read Aloud Preview** looks like VS
+Code's Markdown preview and highlights the sentence and the spoken word as they are read, scrolling
+along (with the same **Back to reading** behavior). Double-click any word, or right-click and choose
+**Read Aloud from Here**, to start reading there. Open it with **Clear Markdown: Open Read Aloud
+Preview** (or **…to the Side**), from the editor's **Reopen Editor With…** list, or from the Explorer
+context menu. It updates as you edit.
+
+VS Code's own Markdown preview can't show which words are being read: VS Code doesn't let other
+extensions highlight inside it. So when you press Play while VS Code's preview is open, Read Aloud reads
+that file and shows the Read Aloud Preview in its place. To keep VS Code's preview instead (reading
+without highlighting there), turn off `clearMarkdown.replaceMarkdownPreview`.
 
 ### The Read Aloud player
 
@@ -144,13 +158,14 @@ the original narration. Don't use it for content you are not allowed to share.
 | `clearMarkdown.naturalVoice` | `af_heart` | Natural voice |
 | `clearMarkdown.naturalQuality` | `best` | `best` (326 MB) or `compact` (92 MB, slightly lower quality) |
 | `clearMarkdown.systemVoice` | | Operating-system voice for the system engine |
-| `clearMarkdown.rate` | `1` | Speed: 0.5, 0.75, 1, 1.25, 1.5, 1.75 or 2; pitch preserved |
+| `clearMarkdown.rate` | `1` | Speed: 0.5 to 3 in quarter steps; pitch preserved |
 | `clearMarkdown.volume` | `100` | Volume in percent; the player's slider changes it |
 | `clearMarkdown.skipBackSeconds` / `skipForwardSeconds` | `10` / `30` | Skip lengths |
 | `clearMarkdown.tableMode` | `rows` | `rows` or `columns` |
 | `clearMarkdown.codeBlocks` | `announce` | `announce`, `read` or `skip` |
-| `clearMarkdown.highlightWords` | `true` | Highlight each word in the editor as well as the sentence |
-| `clearMarkdown.followInEditor` | `true` | Scroll the editor to keep the reading in view |
+| `clearMarkdown.highlightWords` | `true` | Highlight each word as well as the sentence (editor and Read Aloud Preview) |
+| `clearMarkdown.followInEditor` | `true` | Scroll the editor and the Read Aloud Preview to keep the reading in view |
+| `clearMarkdown.replaceMarkdownPreview` | `true` | Show the Read Aloud Preview in place of VS Code's preview when reading starts from it |
 | `clearMarkdown.pronunciations` | `{}` | Your pronunciation dictionary |
 | `clearMarkdown.threads` | `0` | CPU threads for the natural voice (0 = automatic) |
 

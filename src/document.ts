@@ -94,14 +94,14 @@ function spokenForm(text: string): string {
   return value;
 }
 
-function stripFrontMatter(markdown: string): string {
+export function stripFrontMatter(markdown: string): string {
   // Replace YAML front matter with blank lines so source line numbers stay correct.
   return markdown.replace(/^---\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)(?:\r?\n|$)/, match =>
     '\n'.repeat((match.match(/\n/g) ?? []).length));
 }
 
 /** Converts positions in the parsed text to document positions. */
-class Source {
+export class Source {
   readonly lines: string[];
 
   constructor(text: string, private readonly lineOffset: number, private readonly characterOffset: number) {
@@ -144,9 +144,9 @@ class Source {
 }
 
 /** Maps offsets in a token's inline content back to source positions. */
-interface Locator { at(offset: number): { line: number; character: number } | null }
+export interface Locator { at(offset: number): { line: number; character: number } | null }
 
-function locateParagraph(content: string, firstLine: number, source: Source): Locator {
+export function locateParagraph(content: string, firstLine: number, source: Source): Locator {
   const starts: number[] = [];
   let offset = 0;
   const bases = content.split('\n').map((text, k) => {
@@ -167,8 +167,47 @@ function locateParagraph(content: string, firstLine: number, source: Source): Lo
   };
 }
 
-function locateCell(line: number, column: number): Locator {
+export function locateCell(line: number, column: number): Locator {
   return { at: position => (column < 0 ? null : { line, character: column + position }) };
+}
+
+/**
+ * Where a table cell's content starts in its row's source line, searching from `cursor`. markdown-it
+ * unescapes "\|" in cells, so the escaped form is tried when the plain one is missing.
+ */
+export function cellColumn(lineText: string, content: string, cursor: number): { column: number; raw: string } {
+  let raw = content;
+  let column = content ? lineText.indexOf(content, cursor) : -1;
+  if (column < 0 && content.includes('|')) {
+    raw = content.replace(/\|/g, '\\|');
+    column = lineText.indexOf(raw, cursor);
+  }
+  return { column, raw };
+}
+
+/**
+ * Finds rendered text in a token's source content, skipping link destinations and HTML tags, and
+ * tolerating markup inside a word (for example **Data**Harbor).
+ */
+export function textFinder(content: string): (text: string, from: number) => [number, number] | null {
+  const skips = [...content.matchAll(/\]\([^)]*\)|<\/?[a-zA-Z][a-zA-Z0-9-]*(?:\s[^>]*)?\/?>/g)].map(m => [m.index!, m.index! + m[0].length] as const);
+  const inSkip = (at: number) => skips.find(([a, b]) => at >= a && at < b);
+  return (text, from) => {
+    let at = from;
+    for (;;) {
+      const index = content.indexOf(text, at);
+      if (index < 0) break;
+      const skip = inSkip(index);
+      if (!skip) return [index, index + text.length];
+      at = skip[1];
+    }
+    const pattern = new RegExp([...text].map(ch => ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[*_~`\\\\]*'), 'g');
+    pattern.lastIndex = from;
+    for (let match = pattern.exec(content); match; match = pattern.exec(content)) {
+      if (!inSkip(match.index)) return [match.index, match.index + match[0].length];
+    }
+    return null;
+  };
 }
 
 interface Run { text: string; spoken?: string; atomic?: boolean; parts?: boolean }
@@ -266,29 +305,9 @@ function sentences(inline: Inline): Span[] {
   return spans;
 }
 
-/**
- * Finds each unit's text in the token's source content, in order, skipping link destinations and
- * HTML tags. Markup inside a word (for example **Data**Harbor) is tolerated.
- */
+/** Finds each unit's text in the token's source content, in order. */
 function sourceOffsets(content: string, inline: Inline): ([number, number] | null)[] {
-  const skips = [...content.matchAll(/\]\([^)]*\)|<\/?[a-zA-Z][a-zA-Z0-9-]*(?:\s[^>]*)?\/?>/g)].map(m => [m.index!, m.index! + m[0].length] as const);
-  const inSkip = (at: number) => skips.find(([a, b]) => at >= a && at < b);
-  const find = (text: string, from: number): [number, number] | null => {
-    let at = from;
-    for (;;) {
-      const index = content.indexOf(text, at);
-      if (index < 0) break;
-      const skip = inSkip(index);
-      if (!skip) return [index, index + text.length];
-      at = skip[1];
-    }
-    const pattern = new RegExp([...text].map(ch => ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[*_~`\\\\]*'), 'g');
-    pattern.lastIndex = from;
-    for (let match = pattern.exec(content); match; match = pattern.exec(content)) {
-      if (!inSkip(match.index)) return [match.index, match.index + match[0].length];
-    }
-    return null;
-  };
+  const find = textFinder(content);
   let cursor = 0;
   return inline.units.map(unit => {
     const found = find(inline.display.slice(unit.start, unit.end), cursor);
@@ -400,13 +419,7 @@ class Builder {
         const content = inlineToken.content;
         const line = rows.at(-1)?.map?.[0] ?? 0;
         const lineText = this.source.lines[line] ?? '';
-        // markdown-it unescapes "\|" in cells, so look for the escaped form when the plain one is missing.
-        let raw = content;
-        let column = content ? lineText.indexOf(content, cursor) : -1;
-        if (column < 0 && content.includes('|')) {
-          raw = content.replace(/\|/g, '\\|');
-          column = lineText.indexOf(raw, cursor);
-        }
+        const { column, raw } = cellColumn(lineText, content, cursor);
         if (column >= 0) cursor = column + raw.length;
         const inline = tokenize(collectRuns(inlineToken.children ?? []));
         const words = this.groups(inline, raw, locateCell(line, column), false)[0]?.words ?? [];

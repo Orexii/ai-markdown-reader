@@ -7,8 +7,8 @@ export interface MarkupOptions {
   skipForward: number;
 }
 
-/** Playback speeds offered everywhere: quarter steps from half to double speed. */
-export const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const;
+/** Playback speeds offered everywhere: quarter steps from half to triple speed. */
+export const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3] as const;
 
 const ICONS: Record<string, string> = {
   play: '<path d="M8 5v14l11-7z"/>',

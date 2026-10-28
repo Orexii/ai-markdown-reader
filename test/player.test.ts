@@ -344,25 +344,25 @@ test('setup banner offers the download, shows progress and recovers from errors;
   }
 });
 
-test('speeds are quarter steps from 0.5x to 2x, pitch is preserved, and the choice is saved', async () => {
+test('speeds are quarter steps from 0.5x to 3x, pitch is preserved, and the choice is saved', async () => {
   const p = player();
   try {
     p.plan();
     p.ready();
     const options = [...(p.$('rate') as HTMLSelectElement).options].map(option => option.textContent);
-    assert.deepEqual(options, ['0.5×', '0.75×', '1×', '1.25×', '1.5×', '1.75×', '2×']);
-    (p.$('rate') as HTMLSelectElement).value = '1.5';
+    assert.deepEqual(options, ['0.5×', '0.75×', '1×', '1.25×', '1.5×', '1.75×', '2×', '2.25×', '2.5×', '2.75×', '3×']);
+    (p.$('rate') as HTMLSelectElement).value = '2.5';
     p.$('rate').dispatchEvent(new p.window.Event('change'));
-    assert.ok(p.audios.every(audio => audio.playbackRate === 1.5 && audio.preservesPitch === true));
+    assert.ok(p.audios.every(audio => audio.playbackRate === 2.5 && audio.preservesPitch === true));
     p.key('+');
     p.key('+');
     p.key('+');
-    assert.equal(p.audios[0]!.playbackRate, 2, 'stops at double speed');
+    assert.equal(p.audios[0]!.playbackRate, 3, 'stops at triple speed');
     p.key('-');
     p.key('-');
     p.key('-');
-    assert.equal(p.audios[0]!.playbackRate, 1.25);
-    assert.equal((p.$('rate') as HTMLSelectElement).value, '1.25');
+    assert.equal(p.audios[0]!.playbackRate, 2.25);
+    assert.equal((p.$('rate') as HTMLSelectElement).value, '2.25');
     p.send({ type: 'command', action: 'setRate', value: 0.9 });
     assert.equal(p.audios[0]!.playbackRate, 1, 'other values snap to the nearest step');
     await p.wait(350);

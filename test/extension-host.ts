@@ -25,6 +25,9 @@ interface State {
   stale: boolean;
   volume: number;
   muted: boolean;
+  previews: number;
+  previewSentence?: string;
+  previewWord?: string;
 }
 
 const state = () => vscode.commands.executeCommand<State>('clearMarkdown.testState');
@@ -107,10 +110,10 @@ export async function run(): Promise<void> {
   assert.equal(current.wordText!.replace(/[*_`]/g, ''), current.expectedWord, 'highlights moved with the edit');
   await document.save();
 
-  // Close the sidebar: the hidden player keeps playing at double speed while the editor follows along.
+  // Close the sidebar: the hidden player keeps playing at triple speed while the editor follows along.
   await vscode.commands.executeCommand('workbench.action.closeSidebar');
-  for (let i = 0; i < 4; i++) await vscode.commands.executeCommand('clearMarkdown.faster');
-  current = await until(s => s.rate === 2 && !s.viewVisible, 'double speed with the player hidden');
+  for (let i = 0; i < 8; i++) await vscode.commands.executeCommand('clearMarkdown.faster');
+  current = await until(s => s.rate === 3 && !s.viewVisible, 'triple speed with the player hidden');
   const hiddenFrom = current.index;
   await until(s => s.index >= hiddenFrom + 3, 'progress while the player is hidden', 60_000);
   current = await until(s => s.events.includes('finished'), 'reaching the end of the document', 240_000);
@@ -120,12 +123,26 @@ export async function run(): Promise<void> {
   const sorted = [...gaps].sort((a, b) => a - b);
   console.log(`Natural voice: ${current.total} passages; ${stalls} stall(s); ${late} late start(s); ${gaps.length} track handoffs, ` +
     `gap median ${sorted[Math.floor(sorted.length / 2)] ?? 'n/a'} ms, max ${sorted.at(-1) ?? 'n/a'} ms.`);
-  assert.ok(stalls <= 1, `playback stalled ${stalls} times at double speed: ${current.events.join(' | ')}`);
+  assert.ok(stalls <= 1, `playback stalled ${stalls} times at triple speed: ${current.events.join(' | ')}`);
   assert.ok(gaps.every(gap => gap < 250), `a track handoff left an audible gap: ${gaps.join(', ')}`);
-  await vscode.commands.executeCommand('clearMarkdown.slower');
-  await vscode.commands.executeCommand('clearMarkdown.slower');
-  await vscode.commands.executeCommand('clearMarkdown.slower');
-  await vscode.commands.executeCommand('clearMarkdown.slower');
+
+  // Reading from VS Code's own Markdown preview swaps it for the Read Aloud Preview, which highlights the spoken word.
+  await vscode.commands.executeCommand('vscode.openWith', document.uri, 'vscode.markdown.preview.editor');
+  const isTab = (viewType: string) => (tab: vscode.Tab | undefined) => tab?.input instanceof vscode.TabInputCustom && tab.input.viewType === viewType;
+  const allTabs = () => vscode.window.tabGroups.all.flatMap(group => group.tabs);
+  await until(() => isTab('vscode.markdown.preview.editor')(vscode.window.tabGroups.activeTabGroup.activeTab), "VS Code's preview to open", 20_000);
+  await vscode.commands.executeCommand('clearMarkdown.readFromTop');
+  current = await until(s => s.previews > 0 && !!s.previewWord && !!s.expectedWord && s.playing, 'the Read Aloud Preview to highlight a spoken word', 60_000);
+  assert.ok(isTab('clearMarkdown.preview')(vscode.window.tabGroups.activeTabGroup.activeTab), 'the Read Aloud Preview took the place of VS Code\'s preview');
+  assert.ok(!allTabs().some(isTab('vscode.markdown.preview.editor')), "VS Code's preview was closed");
+  const letters = (value: string) => value.replace(/[^\p{L}\p{N}]/gu, '').toLowerCase();
+  current = await until(s => !!s.previewWord && !!s.expectedWord && letters(s.previewWord) === letters(s.expectedWord), 'the preview to highlight the word being spoken', 30_000);
+  assert.ok(current.previewSentence!.includes(current.previewWord!.replace(/[.,;:!?]+$/, '')), 'the spoken word is inside the highlighted sentence');
+  console.log(`Read Aloud Preview: highlighted "${current.previewWord}" in "${current.previewSentence}".`);
+  await vscode.commands.executeCommand('clearMarkdown.togglePlay');
+  await until(s => !s.playing, 'pause in the preview');
+  await vscode.window.tabGroups.close(allTabs().filter(isTab('clearMarkdown.preview')));
+  for (let i = 0; i < 8; i++) await vscode.commands.executeCommand('clearMarkdown.slower');
 
   // The player is reused, so reading a selection plays at once with no new click.
   await vscode.window.showTextDocument(document);
@@ -147,5 +164,5 @@ export async function run(): Promise<void> {
   assert.equal(current.sentenceText, undefined, 'stopping clears the highlight');
   await config.update('engine', undefined, vscode.ConfigurationTarget.Global);
   await config.update('rate', undefined, vscode.ConfigurationTarget.Global);
-  console.log('Extension host: natural voice, editor highlighting, commands, hidden player, selection and system voice passed.');
+  console.log('Extension host: natural voice, editor highlighting, commands, hidden player at 3x, Read Aloud Preview, selection and system voice passed.');
 }

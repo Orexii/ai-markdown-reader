@@ -2,7 +2,7 @@
   "name": "clear-markdown-reader",
   "displayName": "Clear Markdown Reader",
   "description": "Listen to Markdown with a natural neural voice that runs on your computer. The editor highlights each sentence and word as it is read, tables and lists sound natural, and small podcast-style controls sit in the status bar.",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "publisher": "orexii",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -60,6 +60,29 @@
         "command": "clearMarkdown.readSelection",
         "title": "Read Selection Aloud",
         "category": "Clear Markdown"
+      },
+      {
+        "command": "clearMarkdown.openPreview",
+        "title": "Open Read Aloud Preview",
+        "category": "Clear Markdown",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "clearMarkdown.openPreviewToSide",
+        "title": "Open Read Aloud Preview to the Side",
+        "category": "Clear Markdown",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "clearMarkdown.readFromHere",
+        "title": "Read Aloud from Here",
+        "category": "Clear Markdown"
+      },
+      {
+        "command": "clearMarkdown.showSource",
+        "title": "Show Source",
+        "category": "Clear Markdown",
+        "icon": "$(go-to-file)"
       },
       {
         "command": "clearMarkdown.togglePlay",
@@ -175,7 +198,7 @@
       "editor/title": [
         {
           "command": "clearMarkdown.read",
-          "when": "editorLangId == markdown && resource not in clearMarkdown.readingResources",
+          "when": "(editorLangId == markdown || activeCustomEditorId == 'vscode.markdown.preview.editor' || activeCustomEditorId == 'clearMarkdown.preview' || activeWebviewPanelId == 'markdown.preview') && resource not in clearMarkdown.readingResources",
           "group": "navigation"
         },
         {
@@ -192,6 +215,11 @@
           "command": "clearMarkdown.stop",
           "when": "resource in clearMarkdown.readingResources",
           "group": "navigation@2"
+        },
+        {
+          "command": "clearMarkdown.showSource",
+          "when": "activeCustomEditorId == 'clearMarkdown.preview'",
+          "group": "navigation@3"
         }
       ],
       "view/title": [
@@ -218,12 +246,17 @@
           "command": "clearMarkdown.read",
           "when": "resourceLangId == markdown",
           "group": "navigation"
+        },
+        {
+          "command": "clearMarkdown.openPreview",
+          "when": "resourceLangId == markdown",
+          "group": "navigation"
         }
       ],
       "commandPalette": [
         {
           "command": "clearMarkdown.togglePlay",
-          "when": "clearMarkdown.playerActive || editorLangId == markdown"
+          "when": "clearMarkdown.playerActive || (editorLangId == markdown || activeCustomEditorId == 'vscode.markdown.preview.editor' || activeCustomEditorId == 'clearMarkdown.preview' || activeWebviewPanelId == 'markdown.preview')"
         },
         {
           "command": "clearMarkdown.play",
@@ -287,11 +320,11 @@
         },
         {
           "command": "clearMarkdown.read",
-          "when": "editorLangId == markdown"
+          "when": "(editorLangId == markdown || activeCustomEditorId == 'vscode.markdown.preview.editor' || activeCustomEditorId == 'clearMarkdown.preview' || activeWebviewPanelId == 'markdown.preview')"
         },
         {
           "command": "clearMarkdown.readFromTop",
-          "when": "editorLangId == markdown"
+          "when": "(editorLangId == markdown || activeCustomEditorId == 'vscode.markdown.preview.editor' || activeCustomEditorId == 'clearMarkdown.preview' || activeWebviewPanelId == 'markdown.preview')"
         },
         {
           "command": "clearMarkdown.readFromCursor",
@@ -300,6 +333,29 @@
         {
           "command": "clearMarkdown.readSelection",
           "when": "editorLangId == markdown && editorHasSelection"
+        },
+        {
+          "command": "clearMarkdown.openPreview",
+          "when": "(editorLangId == markdown || activeCustomEditorId == 'vscode.markdown.preview.editor' || activeCustomEditorId == 'clearMarkdown.preview' || activeWebviewPanelId == 'markdown.preview')"
+        },
+        {
+          "command": "clearMarkdown.openPreviewToSide",
+          "when": "(editorLangId == markdown || activeCustomEditorId == 'vscode.markdown.preview.editor' || activeCustomEditorId == 'clearMarkdown.preview' || activeWebviewPanelId == 'markdown.preview')"
+        },
+        {
+          "command": "clearMarkdown.readFromHere",
+          "when": "false"
+        },
+        {
+          "command": "clearMarkdown.showSource",
+          "when": "activeCustomEditorId == 'clearMarkdown.preview'"
+        }
+      ],
+      "webview/context": [
+        {
+          "command": "clearMarkdown.readFromHere",
+          "when": "webviewId == 'clearMarkdown.preview'",
+          "group": "navigation"
         }
       ]
     },
@@ -465,10 +521,14 @@
             1.25,
             1.5,
             1.75,
-            2
+            2,
+            2.25,
+            2.5,
+            2.75,
+            3
           ],
           "default": 1,
-          "description": "Reading speed, from half to double speed in quarter steps. Pitch stays natural."
+          "description": "Reading speed, from half to triple speed in quarter steps. Pitch stays natural."
         },
         "clearMarkdown.volume": {
           "type": "integer",
@@ -522,12 +582,17 @@
         "clearMarkdown.followInEditor": {
           "type": "boolean",
           "default": true,
-          "description": "Scroll the editor to keep the sentence being read in view. Scrolling away pauses this until you scroll back."
+          "description": "Scroll the editor and the Read Aloud Preview to keep the sentence being read in view. Scrolling away pauses this until you scroll back."
         },
         "clearMarkdown.highlightWords": {
           "type": "boolean",
           "default": true,
-          "description": "Highlight each word in the editor as it is spoken, as well as the sentence."
+          "description": "Highlight each word as it is spoken, as well as the sentence, in the editor and the Read Aloud Preview."
+        },
+        "clearMarkdown.replaceMarkdownPreview": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "When you start reading while VS Code's Markdown Preview is open, show the **Read Aloud Preview** in its place. VS Code's preview cannot show which words are being read; the Read Aloud Preview looks the same and highlights them."
         },
         "clearMarkdown.pronunciations": {
           "type": "object",
@@ -557,7 +622,19 @@
           "visibility": "collapsed"
         }
       ]
-    }
+    },
+    "customEditors": [
+      {
+        "viewType": "clearMarkdown.preview",
+        "displayName": "Read Aloud Preview",
+        "selector": [
+          {
+            "filenamePattern": "*.{md,mkd,mkdn,mdwn,mdown,markdown,markdn,mdtxt,mdtext}"
+          }
+        ],
+        "priority": "option"
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run check && npm run build",

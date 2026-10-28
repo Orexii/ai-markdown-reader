@@ -14,6 +14,7 @@ import type { Services, Settings } from './services';
 import type { PlayerMessage, PlayerView } from './view';
 import type { EditorHighlight } from './highlight';
 import type { Controls } from './controls';
+import type { PreviewPanels } from './previewPanel';
 
 type EngineState = 'loading' | 'ready' | 'missing' | 'downloading' | 'error';
 export type Start = 'resume' | 'top' | { line: number; character: number };
@@ -77,11 +78,13 @@ export class Reader implements vscode.Disposable {
   /** Diagnostic events reported by the player, used by the integration test. */
   readonly events: string[] = [];
 
-  constructor(private readonly services: Services, private readonly view: PlayerView, private readonly highlight: EditorHighlight, private readonly controls: Controls) {
+  constructor(private readonly services: Services, private readonly view: PlayerView, private readonly highlight: EditorHighlight, private readonly controls: Controls,
+    private readonly previews: PreviewPanels) {
     this.settings = services.settings();
     this.kind = this.settings.engine;
     this.rate = this.settings.rate;
     highlight.configure({ follow: this.settings.followInEditor, words: this.settings.highlightWords });
+    previews.configure({ follow: this.settings.followInEditor, words: this.settings.highlightWords });
     this.disposables.push(
       this.changed,
       view.onMessage(message => void this.handle(message).catch(error => this.fail(error))),
@@ -114,6 +117,7 @@ export class Reader implements vscode.Disposable {
     if (current && !current.stale && !selection && !current.selection && current.uri.toString() === options.document.uri.toString()) {
       // Reuse the narration and the audio already made for it.
       this.highlight.backToReading();
+      this.previews.reveal(current.uri);
       if (options.start === 'top') this.command('seek', { index: 0, word: -1, play: true });
       else if (typeof options.start === 'object') this.command('seek', { ...locate(current.doc, options.start), play: true });
       else this.command('play');
@@ -125,6 +129,7 @@ export class Reader implements vscode.Disposable {
     this.saveTimer = undefined;
     await this.save();
     this.highlight.clear();
+    this.previews.clear();
     this.reading = reading;
     const at = this.startAt(reading, options.start);
     this.index = at.index;
@@ -249,6 +254,7 @@ export class Reader implements vscode.Disposable {
     this.playing = false;
     this.waiting = false;
     this.highlight.clear();
+    this.previews.clear();
     this.view.post({ type: 'idle' });
     this.view.description = undefined;
     this.updateControls();
@@ -261,6 +267,7 @@ export class Reader implements vscode.Disposable {
 
   backToReading(): void {
     this.highlight.backToReading();
+    if (this.reading) this.previews.reveal(this.reading.uri);
     this.showPosition();
   }
 
@@ -547,6 +554,7 @@ export class Reader implements vscode.Disposable {
     const utterance = reading.doc.utterances[this.index];
     const word = this.word >= 0 ? utterance?.words[this.word]?.range ?? null : null;
     this.highlight.show(reading.uri, utterance?.range ?? null, word, scroll);
+    this.previews.show({ uri: reading.uri.toString(), sentence: utterance?.range ?? null, word });
   }
 
   private updateControls(): void {
@@ -610,6 +618,7 @@ export class Reader implements vscode.Disposable {
       this.kind = after.engine;
       this.rate = after.rate;
       this.highlight.configure({ follow: after.followInEditor, words: after.highlightWords });
+      this.previews.configure({ follow: after.followInEditor, words: after.highlightWords });
       if (playerSettings) this.postSettings();
       return;
     }
@@ -628,6 +637,7 @@ export class Reader implements vscode.Disposable {
     if (playerSettings) {
       if (changed('rate')) this.rate = after.rate;
       this.highlight.configure({ follow: after.followInEditor, words: after.highlightWords });
+      this.previews.configure({ follow: after.followInEditor, words: after.highlightWords });
       this.postSettings();
       this.showPosition();
       this.updateControls();
@@ -708,7 +718,7 @@ export class Reader implements vscode.Disposable {
       loaded: !!this.reading, file: this.reading?.title, events: [...this.events], playing: this.playing, waiting: this.waiting,
       index: this.index, word: this.word, total: this.reading?.doc.utterances.length ?? 0, state: this.state, kind: this.kind, rate: this.rate,
       viewVisible: this.view.visible, detached: this.highlight.isDetached, stale: !!this.reading?.stale, volume: this.volume, muted: this.muted,
-      ...this.highlight.highlighted(),
+      ...this.highlight.highlighted(), ...this.previews.snapshot(this.reading?.uri),
       expectedWord: this.word >= 0 ? this.reading?.doc.utterances[this.index]?.words[this.word]?.text : undefined
     };
   }

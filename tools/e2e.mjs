@@ -62,7 +62,7 @@ try {
   code.stdout.on('data', data => { output += data; });
   code.stderr.on('data', data => { output += data; });
   const exit = await new Promise(resolve => code.on('close', resolve));
-  const relevant = output.split(/\r?\n/).filter(line => /E2E:|Natural voice:|Background:|Extension host:|Error|assert|Timed out|failed/i.test(line) && !/DeprecationWarning|mutex|agentHost|CloudSandbox|Unknown channel|proposal|GPU|gpu_|ERROR:/i.test(line));
+  const relevant = output.split(/\r?\n/).filter(line => /E2E:|Natural voice:|Read Aloud Preview:|Background:|Extension host:|Error|assert|Timed out|failed/i.test(line) && !/DeprecationWarning|mutex|agentHost|CloudSandbox|Unknown channel|proposal|GPU|gpu_|ERROR:/i.test(line));
   console.log(relevant.join('\n'));
   if (exit !== 0) {
     if (existsSync(path.join(temp, 'profile', 'logs'))) console.log(`Logs kept at ${path.join(temp, 'profile', 'logs')}`);

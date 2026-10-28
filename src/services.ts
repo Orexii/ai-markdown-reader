@@ -20,6 +20,8 @@ export interface Settings {
   codeBlocks: 'announce' | 'read' | 'skip';
   followInEditor: boolean;
   highlightWords: boolean;
+  /** Swap VS Code's Markdown preview for the Read Aloud Preview when reading starts from it. */
+  replaceMarkdownPreview: boolean;
   skipBack: number;
   skipForward: number;
   threads: number;
@@ -65,6 +67,7 @@ export class Services implements vscode.Disposable {
       codeBlocks: (['announce', 'read', 'skip'] as const).find(mode => mode === config.get('codeBlocks')) ?? 'announce',
       followInEditor: config.get<boolean>('followInEditor', true),
       highlightWords: config.get<boolean>('highlightWords', true),
+      replaceMarkdownPreview: config.get<boolean>('replaceMarkdownPreview', true),
       skipBack: clamp(config.get<number>('skipBackSeconds', 10), 1, 120),
       skipForward: clamp(config.get<number>('skipForwardSeconds', 30), 1, 300),
       threads: Math.round(clamp(config.get<number>('threads', 0), 0, 32)),

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0
+
+- **Read from the rendered preview.** A new **Read Aloud Preview** looks like VS Code's Markdown preview
+  and highlights the sentence and the spoken word as they are read, scrolling along with **Back to
+  reading**. Double-click a word, or right-click and choose **Read Aloud from Here**, to read from
+  there. It updates as you edit, and opens from the command palette, **Reopen Editor With…** or the
+  Explorer.
+- **Play works from VS Code's own Markdown preview.** It reads that file and, because VS Code's preview
+  cannot show the reading position, shows the Read Aloud Preview in its place
+  (`clearMarkdown.replaceMarkdownPreview` turns that off).
+- **Speeds up to 3×**, in quarter steps from 0.5×.
+
 ## 0.4.2
 
 - **Paragraph buttons.** The |◀ and ▶| buttons now skip to the previous and next paragraph (list
