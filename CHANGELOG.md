@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.3.0
+
+- **No more separate reader page.** The text is highlighted in your own Markdown editor: the sentence
+  being read, and the word being spoken more strongly. The editor scrolls along, stops following when
+  you scroll away, and follows again when you scroll back or click **Back to reading**.
+- **Small controls.** Back 10 s, play/pause with time, forward 30 s and speed in the status bar;
+  pause/resume and stop in the editor title; a compact **Read Aloud** section in the Explorer hosts the
+  audio (VS Code needs one click there per window before sound can play) and can be collapsed while
+  reading continues.
+- **No more hitches between sentences.** Consecutive sentences now play as one continuous track, and
+  the next track is preloaded and started inside the closing pause of the current one, so sentence
+  ends no longer stop for a moment. Speech generation adapts to how much audio is buffered, so 2× does
+  not run out of audio after starting or skipping.
+- **Speeds in quarter steps:** 0.5×, 0.75×, 1×, 1.25×, 1.5×, 1.75× and 2×.
+- **Read Aloud from Cursor** jumps to the word under the cursor while a file is being read.
+- Copilot descriptions are offered above tables and code blocks of the file being read, and reviewed
+  in a dialog before use.
+- Editing the file while it is read keeps highlights on the right words and offers to update the
+  reading from the same place.
+
 ## 0.2.0
 
 - **Natural local voice by default.** Kokoro-82M runs on your computer through ONNX Runtime in a

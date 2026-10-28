@@ -1,110 +1,147 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { JSDOM } from 'jsdom';
-import { buildDocument, textWords, utteranceText, type DocumentOptions, type ReaderDocument } from '../src/document';
+import { buildDocument, textWords, utteranceText, type DocumentOptions, type ReaderDocument, type SourceRange } from '../src/document';
 
 const spoken = (markdown: string, options?: Partial<DocumentOptions>) => buildDocument(markdown, options).utterances.map(utteranceText);
 
-/** Every id the player highlights must exist in the rendered HTML. */
-function assertTargetsExist(doc: ReaderDocument): Document {
-  const dom = new JSDOM(`<main>${doc.html}</main>`).window.document;
-  for (const utterance of doc.utterances) {
-    for (const id of utterance.highlight) assert.ok(dom.getElementById(id), `missing highlight ${id}`);
-    for (const word of utterance.words) if (word.target) assert.ok(dom.getElementById(word.target), `missing target ${word.target}`);
-  }
-  for (const block of doc.blocks) assert.ok(dom.getElementById(block.id), `missing block ${block.id}`);
-  return dom;
+/** The source text a range points at. */
+function slice(markdown: string, range: SourceRange | null): string | null {
+  if (!range) return null;
+  const lines = markdown.split(/\r?\n/);
+  if (range.line === range.endLine) return lines[range.line]!.slice(range.character, range.endCharacter);
+  return [lines[range.line]!.slice(range.character), ...lines.slice(range.line + 1, range.endLine), lines[range.endLine]!.slice(0, range.endCharacter)].join('\n');
 }
 
-test('labelled bullets flow as sentences without Markdown syntax', () => {
-  assert.deepEqual(spoken('- **Mail:** send the [draft](https://example.com/secret).\n- Keep `userId` unchanged.'),
-    ['Mail: send the draft.', 'Keep userId unchanged.']);
+/**
+ * Every highlighted word must point at its own text in the source. Spoken forms may differ (an autolink
+ * speaks its host, an image says "Image:"), and a table's "Column" cue points at the column's header.
+ */
+function assertWordsInSource(markdown: string, doc: ReaderDocument): void {
+  for (const utterance of doc.utterances) {
+    for (const word of utterance.words) {
+      if (!word.range) continue;
+      const text = slice(markdown, word.range)!;
+      const matches = text.includes(word.text) || word.text.includes(text) || text === word.text.replace(/\s/g, '') || word.text === 'Column';
+      assert.ok(matches, `"${word.text}" points at "${text}"`);
+    }
+  }
+}
+
+test('labelled bullets flow as sentences and highlight their own words', () => {
+  const markdown = '- **Mail:** send the [draft](https://example.com/secret).\n- Keep `userId` unchanged.';
+  const doc = buildDocument(markdown);
+  assert.deepEqual(doc.utterances.map(utteranceText), ['Mail: send the draft.', 'Keep userId unchanged.']);
+  assertWordsInSource(markdown, doc);
+  assert.equal(slice(markdown, doc.utterances[0]!.range), 'Mail:** send the [draft](https://example.com/secret).');
+  assert.equal(slice(markdown, doc.utterances[1]!.words[1]!.range), 'userId');
+  assert.equal(doc.utterances[1]!.words.every(word => word.range), true);
 });
 
 test('nested lists, continuation paragraphs, task state and ordered numbering', () => {
-  assert.deepEqual(spoken('3. First\n\n   More detail.\n   - Nested\n4. Last\n\n- [x] Done\n- [ ] Next'),
-    ['3. First.', 'More detail.', 'Nested.', '4. Last.', 'Completed: Done.', 'Not completed: Next.']);
+  const markdown = '3. First\n\n   More detail.\n   - Nested\n4. Last\n\n- [x] Done\n- [ ] Next';
+  const doc = buildDocument(markdown);
+  assert.deepEqual(doc.utterances.map(utteranceText), ['3. First.', 'More detail.', 'Nested.', '4. Last.', 'Completed: Done.', 'Not completed: Next.']);
+  assertWordsInSource(markdown, doc);
+  assert.equal(slice(markdown, doc.utterances[1]!.range), 'More detail.');
+  assert.equal(slice(markdown, doc.utterances[4]!.range), 'Done');
+  assert.equal(doc.utterances[4]!.words[0]!.range, null, 'spoken-only cues are not highlighted');
 });
 
-test('tables are read row by row with header cells as targets for column names', () => {
-  const doc = buildDocument('| Service | State | Detail |\n| --- | --- | --- |\n| Mail | **Ready** | A \\| B |\n| Search | | [Open](https://example.com) |');
+test('table rows highlight the row, each cell value and the header named before it', () => {
+  const markdown = '| Service | State | Detail |\n| --- | --- | --- |\n| Mail | **Ready** | A \\| B |\n| Search | | [Open](https://example.com) |';
+  const doc = buildDocument(markdown);
   assert.deepEqual(doc.utterances.map(utteranceText), [
     'Table with 2 rows. Columns: Service, State, Detail.',
     'Mail. State: Ready. Detail: A B.',
     'Search. State: empty. Detail: Open.'
   ]);
-  const dom = assertTargetsExist(doc);
+  assertWordsInSource(markdown, doc);
   const row = doc.utterances[1]!;
-  assert.equal(dom.getElementById(row.highlight[0]!)!.tagName, 'TR');
-  const state = row.words.find(word => word.text === 'State')!;
-  assert.equal(dom.getElementById(state.target!)!.tagName, 'TH');
-  const ready = row.words.find(word => word.text === 'Ready')!;
-  assert.equal(dom.getElementById(ready.target!)!.closest('td')!.textContent, 'Ready');
-  assert.equal(doc.utterances[2]!.words.find(word => word.text === 'empty')!.target, dom.querySelectorAll('tbody tr')[1]!.children[1]!.id);
+  assert.equal(slice(markdown, row.range), '| Mail | **Ready** | A \\| B |');
+  const word = (text: string) => row.words.find(w => w.text === text)!;
+  assert.equal(slice(markdown, word('State').range), 'State');
+  assert.equal(word('State').range!.line, 0, 'the column name points at the header cell');
+  assert.equal(slice(markdown, word('Ready').range), 'Ready');
+  assert.equal(slice(markdown, word('B').range), 'B', 'escaped pipes keep cell positions');
+  const empty = doc.utterances[2]!.words.find(w => w.text === 'empty')!;
+  assert.equal(empty.range, null);
   assert.equal(row.line, 2);
   assert.equal(doc.utterances[2]!.line, 3);
-  assert.equal(dom.querySelector('tbody td')!.textContent, 'Mail');
 });
 
-test('column mode keeps row identity and highlights the column', () => {
-  const doc = buildDocument('| Name | Count |\n| --- | --- |\n| Ada | 7 |\n| Bo | 9 |', { tableMode: 'columns' });
+test('column mode keeps row identity and spans the column', () => {
+  const markdown = '| Name | Count |\n| --- | --- |\n| Ada | 7 |\n| Bo | 9 |';
+  const doc = buildDocument(markdown, { tableMode: 'columns' });
   assert.deepEqual(doc.utterances.map(utteranceText), [
     'Table with 2 rows. Columns: Name, Count.',
     'Column Name. Row 1: Ada. Row 2: Bo.',
     'Column Count. Ada: 7. Bo: 9.'
   ]);
-  assert.equal(doc.utterances[2]!.highlight.length, 3);
-  assertTargetsExist(doc);
+  assertWordsInSource(markdown, doc);
+  const column = doc.utterances[2]!.range!;
+  assert.equal(column.line, 0);
+  assert.equal(column.endLine, 3);
 });
 
-test('front matter is hidden, line numbers survive and selection offsets apply', () => {
-  const doc = buildDocument('---\r\ntitle: Internal\r\n---\r\n\r\n# Hello\r\n\r\nText.');
+test('front matter is skipped, line numbers survive and selection offsets apply', () => {
+  const markdown = '---\r\ntitle: Internal\r\n---\r\n\r\n# Hello\r\n\r\nText.';
+  const doc = buildDocument(markdown);
   assert.deepEqual(doc.utterances.map(utteranceText), ['Hello.', 'Text.']);
   assert.equal(doc.utterances[0]!.line, 4);
+  assert.equal(slice(markdown, doc.utterances[0]!.range), 'Hello');
   assert.equal(doc.blocks[0]!.heading!.text, 'Hello');
-  assert.ok(!doc.html.includes('Internal'));
-  assert.equal(buildDocument('Line.', { lineOffset: 40 }).utterances[0]!.line, 40);
+
+  const full = 'Intro line.\nFirst part. Second **bold** part here.\nThird.';
+  const lines = full.split('\n');
+  const selected = `${lines[1]!.slice(12)}\n${lines[2]}`;
+  const part = buildDocument(selected, { lineOffset: 1, characterOffset: 12 });
+  assert.deepEqual(part.utterances.map(utteranceText), ['Second bold part here.', 'Third.']);
+  assert.equal(slice(full, part.utterances[0]!.range), 'Second **bold** part here.');
+  assert.equal(slice(full, part.utterances[0]!.words[1]!.range), 'bold');
+  assert.equal(slice(full, part.utterances[1]!.range), 'Third.');
 });
 
 test('quotes, alerts, images, raw HTML and code blocks', () => {
-  const doc = buildDocument('# Title\n\n> Think carefully.\n\n> [!WARNING]\n> Back up first.\n\n![A diagram](chart.svg)\n\n<script>alert("unsafe")</script>\n\n<!-- hidden -->\n\n```js\nrun();\nstop();\n```\n\n```mermaid\ngraph TD\nA-->B\n```');
+  const markdown = '# Title\n\n> Think carefully.\n\n> [!WARNING]\n> Back up first.\n\n![A diagram](chart.svg)\n\n<script>alert("unsafe")</script>\n\n<!-- hidden -->\n\n```js\nrun();\nstop();\n```\n\n```mermaid\ngraph TD\nA-->B\n```';
+  const doc = buildDocument(markdown);
   assert.deepEqual(doc.utterances.map(utteranceText), [
     'Title.', 'Quote: Think carefully.', 'Warning: Back up first.', 'Image: A diagram.', 'Code block, JavaScript, 2 lines.', 'Diagram, 2 lines.'
   ]);
-  const dom = assertTargetsExist(doc);
-  assert.equal(dom.querySelector('script'), null);
-  assert.match(dom.querySelector('.html-note')!.textContent!, /not shown/);
-  assert.equal(dom.getElementById(doc.utterances[2]!.words[0]!.target!)!.className, 'callout-title');
+  assertWordsInSource(markdown, doc);
+  assert.equal(slice(markdown, doc.utterances[2]!.range), 'Back up first.');
+  assert.equal(slice(markdown, doc.utterances[3]!.words[0]!.range), 'A diagram');
+  assert.equal(slice(markdown, doc.utterances[4]!.range), '```js\nrun();\nstop();\n```', 'announced code highlights the whole block');
   assert.equal(doc.blocks.filter(block => block.kind === 'html').length, 1);
-  assert.deepEqual(spoken('```\na b\n\nc\n```', { codeBlocks: 'read' }), ['a b.', 'c.']);
+  const read = buildDocument('```\na b\n\nc\n```', { codeBlocks: 'read' });
+  assert.deepEqual(read.utterances.map(utteranceText), ['a b.', 'c.']);
+  assert.equal(read.utterances[1]!.range!.line, 3, 'read code highlights each line');
   assert.deepEqual(spoken('```\nrun();\n```', { codeBlocks: 'skip' }), []);
 });
 
-test('document text and attributes are escaped, and only safe links are clickable', () => {
-  const doc = buildDocument('Hello <img src=x onerror=alert(1)> **bold** `<b>` [x](javascript:alert(1)) [y](https://ok.example/"onmouseover=")');
-  const dom = assertTargetsExist(doc);
-  assert.equal(dom.querySelector('img, b, script'), null);
-  assert.equal(dom.querySelector('.code')!.textContent, '<b>');
-  const links = [...dom.querySelectorAll('[data-href]')].map(link => link.getAttribute('data-href'));
-  // markdown-it percent-encodes quotes in link destinations, so attributes cannot be broken out of.
-  assert.deepEqual(links, ['https://ok.example/%22onmouseover=%22']);
-  // Unsafe link syntax stays visible as inert text and never becomes an attribute.
-  assert.ok([...dom.querySelectorAll('*')].every(element => [...element.attributes].every(attribute => !/^\s*javascript:/i.test(attribute.value))));
-  assert.match(dom.body.textContent!, /\[x\]\(javascript:alert\(1\)\)/);
+test('link targets, HTML tags and URLs are never spoken or highlighted as words', () => {
+  const markdown = 'Hello <kbd>Ctrl</kbd> and **bold** `<b>` [link text](https://example.com/link) end.';
+  const doc = buildDocument(markdown);
+  assert.deepEqual(doc.utterances.map(utteranceText), ['Hello Ctrl and bold <b> link text end.']);
+  assertWordsInSource(markdown, doc);
+  const words = doc.utterances[0]!.words;
+  assert.equal(slice(markdown, words.find(w => w.text === 'Ctrl')!.range), 'Ctrl');
+  assert.equal(slice(markdown, words.find(w => w.text === 'link')!.range), 'link');
+  assert.ok(words.find(w => w.text === 'end')!.range!.character > markdown.indexOf(')'), 'words after a link map past its target');
 });
 
-test('autolinks speak the host; emoji are shown but not spoken', () => {
-  assert.deepEqual(spoken('See <https://www.example.com/path?token=abc> ✅ now.'), ['See example.com now.']);
-  assert.match(buildDocument('Done ✅.').html, /✅/);
+test('autolinks speak the host; emoji are not spoken', () => {
+  const markdown = 'See <https://www.example.com/path?token=abc> ✅ now.';
+  const doc = buildDocument(markdown);
+  assert.deepEqual(doc.utterances.map(utteranceText), ['See example.com now.']);
+  assert.equal(slice(markdown, doc.utterances[0]!.words[1]!.range), 'https://www.example.com/path?token=abc');
 });
 
-test('abbreviations do not end sentences and sentence spans cover the paragraph', () => {
-  const doc = buildDocument('Use tools, e.g. linters. Then ship it! Done?');
+test('abbreviations do not end sentences, and each sentence highlights its own text', () => {
+  const markdown = 'Use tools, e.g. linters. Then ship it! Done?';
+  const doc = buildDocument(markdown);
   assert.deepEqual(doc.utterances.map(utteranceText), ['Use tools, e.g. linters.', 'Then ship it!', 'Done?']);
-  const dom = assertTargetsExist(doc);
-  assert.equal(dom.querySelectorAll('.s').length, 3);
-  assert.equal(dom.querySelector('p')!.textContent, 'Use tools, e.g. linters. Then ship it! Done?');
+  assert.deepEqual(doc.utterances.map(u => slice(markdown, u.range)), ['Use tools, e.g. linters.', 'Then ship it!', 'Done?']);
 });
 
 test('long sentences split at clause boundaries within the speech limit', () => {
@@ -116,46 +153,50 @@ test('long sentences split at clause boundaries within the speech limit', () => 
   assert.ok(texts.every(text => text.length <= 285), texts.map(t => t.length).join(','));
   assert.equal(texts.join(' ').replace(/[,.]/g, ''), markdown.replace(/[,.]/g, ''));
   assert.ok(doc.utterances.slice(0, -1).every(u => u.pauseAfter === 0.15));
-  assert.equal(new Set(doc.utterances.map(u => u.highlight[0])).size, 1);
+  // Each piece highlights its own part of the sentence, in order.
+  const starts = doc.utterances.map(u => u.range!.character);
+  assert.deepEqual(starts, [...starts].sort((a, b) => a - b));
+  assert.equal(new Set(starts).size, starts.length);
   const long = buildDocument(`Value \`${'x'.repeat(700)}\` end.`).utterances;
   assert.ok(long.every(u => utteranceText(u).length <= 300));
 });
 
-test('approved descriptions replace a block narration and keep the block highlighted', () => {
+test('approved descriptions replace a block narration and highlight the whole block', () => {
   const markdown = '# Results\n\n| A | B |\n| - | - |\n| 1 | 2 |\n\nAfter.';
   const original = buildDocument(markdown);
   const table = original.blocks.findIndex(block => block.kind === 'table');
   const doc = buildDocument(markdown, { overrides: new Map([[table, 'The table has one row. A is 1, and B is 2.']]) });
   assert.deepEqual(doc.utterances.map(utteranceText), ['Results.', 'The table has one row.', 'A is 1, and B is 2.', 'After.']);
-  const id = doc.blocks[table]!.id;
-  assert.ok(doc.utterances.slice(1, 3).every(u => u.highlight[0] === id && u.words.every(word => word.target === id)));
+  assert.ok(doc.utterances.slice(1, 3).every(u => slice(markdown, u.range) === '| A | B |\n| - | - |\n| 1 | 2 |' && u.words.every(word => word.range === null)));
   assert.equal(doc.blocks[table]!.first, 1);
   assert.equal(doc.blocks.at(-1)!.first, 3);
-  assertTargetsExist(doc);
 });
 
-test('multi-word inline code is one highlight target with separately spoken words', () => {
-  const doc = buildDocument('Run `npm run build` now.');
-  assert.deepEqual(doc.utterances.map(utteranceText), ['Run npm run build now.']);
-  const words = doc.utterances[0]!.words;
-  assert.equal(new Set(words.slice(1, 4).map(word => word.target)).size, 1);
-  const dom = assertTargetsExist(doc);
-  assert.equal(dom.querySelectorAll('.code').length, 1);
+test('multi-word inline code is one highlight with separately spoken words', () => {
+  const markdown = 'Run `npm run build` now.';
+  const words = buildDocument(markdown).utterances[0]!.words;
+  assert.deepEqual(words.map(word => word.text), ['Run', 'npm', 'run', 'build', 'now']);
+  assert.ok(words.slice(1, 4).every(word => slice(markdown, word.range) === 'npm run build'));
 });
 
 test('free text is split into words with punctuation as separators', () => {
-  assert.deepEqual(textWords('Hello, "world" — again!', null).map(w => [w.text, w.sep]),
+  assert.deepEqual(textWords('Hello, "world" — again!').map(w => [w.text, w.sep]),
     [['Hello', ', '], ['world', '"— '], ['again', '!']]);
 });
 
-test('the demonstration renders with valid targets and no raw Markdown or URLs spoken', () => {
-  const doc = buildDocument(readFileSync('examples/demo.md', 'utf8'));
-  assertTargetsExist(doc);
+test('the demonstration maps every spoken word to its source with no raw Markdown or URLs spoken', () => {
+  const markdown = readFileSync('examples/demo.md', 'utf8');
+  const doc = buildDocument(markdown);
+  assertWordsInSource(markdown, doc);
   const text = doc.utterances.map(utteranceText).join(' ');
   assert.ok(doc.utterances.length > 15);
   assert.ok(!/https?:|\*\*|`|\]\(/.test(text));
   assert.ok(text.includes('State: Ready'));
   assert.ok(doc.blocks.some(block => block.heading?.level === 2));
+  const words = doc.utterances.flatMap(u => u.words);
+  const mapped = words.filter(word => word.range).length;
+  assert.ok(mapped / words.length > 0.85, `${mapped} of ${words.length} words are highlighted`);
+  assert.ok(doc.utterances.every(u => u.range), 'every passage highlights something');
 });
 
 test('empty documents produce nothing to read', () => {

@@ -1,8 +1,8 @@
 {
   "name": "clear-markdown-reader",
   "displayName": "Clear Markdown Reader",
-  "description": "Listen to Markdown with a natural neural voice that runs on your computer: follow-along highlighting, real table and list narration, and podcast-style controls.",
-  "version": "0.2.0",
+  "description": "Listen to Markdown with a natural neural voice that runs on your computer. The editor highlights each sentence and word as it is read, tables and lists sound natural, and small podcast-style controls sit in the status bar.",
+  "version": "0.3.0",
   "publisher": "orexii",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -67,6 +67,24 @@
         "category": "Clear Markdown"
       },
       {
+        "command": "clearMarkdown.play",
+        "title": "Resume Reading",
+        "category": "Clear Markdown",
+        "icon": "$(play)"
+      },
+      {
+        "command": "clearMarkdown.pause",
+        "title": "Pause Reading",
+        "category": "Clear Markdown",
+        "icon": "$(debug-pause)"
+      },
+      {
+        "command": "clearMarkdown.stop",
+        "title": "Stop Reading",
+        "category": "Clear Markdown",
+        "icon": "$(primitive-square)"
+      },
+      {
         "command": "clearMarkdown.skipBack",
         "title": "Skip Back",
         "category": "Clear Markdown"
@@ -107,8 +125,39 @@
         "category": "Clear Markdown"
       },
       {
-        "command": "clearMarkdown.showReader",
-        "title": "Show Reader",
+        "command": "clearMarkdown.chooseSpeed",
+        "title": "Choose Reading Speed",
+        "category": "Clear Markdown"
+      },
+      {
+        "command": "clearMarkdown.chooseVoice",
+        "title": "Choose Voice",
+        "category": "Clear Markdown"
+      },
+      {
+        "command": "clearMarkdown.backToReading",
+        "title": "Scroll Back to the Reading Position",
+        "category": "Clear Markdown"
+      },
+      {
+        "command": "clearMarkdown.showPlayer",
+        "title": "Show Player",
+        "category": "Clear Markdown"
+      },
+      {
+        "command": "clearMarkdown.refreshReading",
+        "title": "Update Reading After Edits",
+        "category": "Clear Markdown"
+      },
+      {
+        "command": "clearMarkdown.describeBlock",
+        "title": "Describe Table or Code with Copilot",
+        "category": "Clear Markdown",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "clearMarkdown.restoreBlock",
+        "title": "Use the Original Narration",
         "category": "Clear Markdown"
       },
       {
@@ -126,7 +175,29 @@
       "editor/title": [
         {
           "command": "clearMarkdown.read",
-          "when": "editorLangId == markdown",
+          "when": "editorLangId == markdown && resource not in clearMarkdown.readingResources",
+          "group": "navigation"
+        },
+        {
+          "command": "clearMarkdown.pause",
+          "when": "resource in clearMarkdown.readingResources && clearMarkdown.playing",
+          "group": "navigation@1"
+        },
+        {
+          "command": "clearMarkdown.play",
+          "when": "resource in clearMarkdown.readingResources && !clearMarkdown.playing",
+          "group": "navigation@1"
+        },
+        {
+          "command": "clearMarkdown.stop",
+          "when": "resource in clearMarkdown.readingResources",
+          "group": "navigation@2"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "clearMarkdown.stop",
+          "when": "view == clearMarkdown.player && clearMarkdown.playerActive",
           "group": "navigation"
         }
       ],
@@ -153,6 +224,18 @@
         {
           "command": "clearMarkdown.togglePlay",
           "when": "clearMarkdown.playerActive || editorLangId == markdown"
+        },
+        {
+          "command": "clearMarkdown.play",
+          "when": "clearMarkdown.playerActive"
+        },
+        {
+          "command": "clearMarkdown.pause",
+          "when": "clearMarkdown.playerActive"
+        },
+        {
+          "command": "clearMarkdown.stop",
+          "when": "clearMarkdown.playerActive"
         },
         {
           "command": "clearMarkdown.skipBack",
@@ -187,8 +270,20 @@
           "when": "clearMarkdown.playerActive"
         },
         {
-          "command": "clearMarkdown.showReader",
+          "command": "clearMarkdown.backToReading",
           "when": "clearMarkdown.playerActive"
+        },
+        {
+          "command": "clearMarkdown.refreshReading",
+          "when": "clearMarkdown.playerActive"
+        },
+        {
+          "command": "clearMarkdown.describeBlock",
+          "when": "clearMarkdown.playerActive"
+        },
+        {
+          "command": "clearMarkdown.restoreBlock",
+          "when": "false"
         },
         {
           "command": "clearMarkdown.read",
@@ -237,12 +332,22 @@
     "colors": [
       {
         "id": "clearMarkdown.readingBackground",
-        "description": "Background of the source lines being read aloud.",
+        "description": "Background of the sentence being read aloud in the editor.",
         "defaults": {
-          "dark": "#3794ff2e",
-          "light": "#0066bf21",
+          "dark": "#3794ff26",
+          "light": "#0066bf1c",
           "highContrast": "#3794ff40",
           "highContrastLight": "#0066bf30"
+        }
+      },
+      {
+        "id": "clearMarkdown.readingWordBackground",
+        "description": "Background of the word being spoken in the editor.",
+        "defaults": {
+          "dark": "#3794ff70",
+          "light": "#0066bf45",
+          "highContrast": "#3794ff90",
+          "highContrastLight": "#0066bf70"
         }
       }
     ],
@@ -353,24 +458,31 @@
         },
         "clearMarkdown.rate": {
           "type": "number",
+          "enum": [
+            0.5,
+            0.75,
+            1,
+            1.25,
+            1.5,
+            1.75,
+            2
+          ],
           "default": 1,
-          "minimum": 0.5,
-          "maximum": 3,
-          "description": "Playback speed. Pitch is preserved."
+          "description": "Reading speed, from half to double speed in quarter steps. Pitch stays natural."
         },
         "clearMarkdown.skipBackSeconds": {
           "type": "number",
           "default": 10,
           "minimum": 1,
           "maximum": 120,
-          "description": "Seconds to go back with the back button, \u2190 or J."
+          "description": "Seconds to skip back (back button, ← or J in the player, Ctrl+Alt+, anywhere)."
         },
         "clearMarkdown.skipForwardSeconds": {
           "type": "number",
           "default": 30,
           "minimum": 1,
           "maximum": 300,
-          "description": "Seconds to go forward with the forward button, \u2192 or L."
+          "description": "Seconds to skip forward (forward button, → or L in the player, Ctrl+Alt+. anywhere)."
         },
         "clearMarkdown.tableMode": {
           "type": "string",
@@ -403,12 +515,12 @@
         "clearMarkdown.followInEditor": {
           "type": "boolean",
           "default": true,
-          "description": "Highlight the lines being read in the Markdown editor and keep them in view."
+          "description": "Scroll the editor to keep the sentence being read in view. Scrolling away pauses this until you scroll back."
         },
         "clearMarkdown.highlightWords": {
           "type": "boolean",
           "default": true,
-          "description": "Highlight each word as it is spoken, as well as the sentence."
+          "description": "Highlight each word in the editor as it is spoken, as well as the sentence."
         },
         "clearMarkdown.pronunciations": {
           "type": "object",
@@ -416,7 +528,7 @@
           "additionalProperties": {
             "type": "string"
           },
-          "markdownDescription": "How to say particular words, e.g. `{ \"Kusto\": \"kuss toe\", \"nginx\": \"engine x\", \"Rakeem\": \"/\u0279\u0251\u02d0k\u02c8i\u02d0m/\" }`. Values in slashes are IPA phonemes (natural voice only). Workspace settings can share a dictionary with your team."
+          "markdownDescription": "How to say particular words, e.g. `{ \"Kusto\": \"kuss toe\", \"nginx\": \"engine x\", \"Rakeem\": \"/ɹɑːkˈiːm/\" }`. Values in slashes are IPA phonemes (natural voice only). Workspace settings can share a dictionary with your team."
         },
         "clearMarkdown.threads": {
           "type": "number",
@@ -426,6 +538,18 @@
           "description": "CPU threads for the natural voice. 0 picks half the processor threads, up to 8."
         }
       }
+    },
+    "views": {
+      "explorer": [
+        {
+          "type": "webview",
+          "id": "clearMarkdown.player",
+          "name": "Read Aloud",
+          "contextualTitle": "Clear Markdown Reader",
+          "icon": "media/icon.svg",
+          "visibility": "collapsed"
+        }
+      ]
     }
   },
   "scripts": {

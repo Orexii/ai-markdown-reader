@@ -1,6 +1,6 @@
 // Runs test/extension-host.ts inside a real VS Code with a throwaway profile.
-// Usage: node tools/e2e.mjs --code <VS Code executable> --model <dir with onnx/model*.onnx and voices/af_heart.bin> [--quality best|compact] [--mode play|gesture]
-// play: Playwright drives VS Code and plays everything. gesture: a normal launch, checking the reader asks for a click.
+// Usage: node tools/e2e.mjs --code <VS Code executable> --model <dir with onnx/model*.onnx and voices/af_heart.bin> [--quality best|compact] [--mode play|gesture] [--screenshots <dir>]
+// play: Playwright drives VS Code and plays everything. gesture: a normal launch, checking the player asks for a click.
 // From WSL, pass the Windows executable (for example "/mnt/c/Program Files/Microsoft VS Code/Code.exe").
 import { execFileSync, spawn } from 'node:child_process';
 import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -54,8 +54,9 @@ try {
     await cp(path.join(root, 'node_modules', 'playwright-core'), path.join(temp, 'driver', 'node_modules', 'playwright-core'), { recursive: true });
     await cp(path.join(root, 'tools', 'e2e-driver.cjs'), path.join(temp, 'driver', 'e2e-driver.cjs'));
     const env = { ...process.env, ELECTRON_RUN_AS_NODE: '1', WSLENV: [process.env.WSLENV, 'ELECTRON_RUN_AS_NODE'].filter(Boolean).join(':') };
-    code = spawn(args.code, [toHost(path.join(temp, 'driver', 'e2e-driver.cjs')), JSON.stringify([toHost(args.code), ...vscodeArgs])],
-      { stdio: ['ignore', 'pipe', 'pipe'], env });
+    const driverArgs = [toHost(path.join(temp, 'driver', 'e2e-driver.cjs')), JSON.stringify([toHost(args.code), ...vscodeArgs])];
+    if (args.screenshots) driverArgs.push(toHost(path.resolve(args.screenshots)));
+    code = spawn(args.code, driverArgs, { stdio: ['ignore', 'pipe', 'pipe'], env });
   }
   let output = '';
   code.stdout.on('data', data => { output += data; });

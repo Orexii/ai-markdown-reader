@@ -4,7 +4,26 @@ import * as path from 'node:path';
 import { writeFile } from 'node:fs/promises';
 import * as vscode from 'vscode';
 
-interface State { sessions: number; events: string[]; playing?: boolean; index?: number; total?: number; state?: string; kind?: string }
+interface State {
+  loaded: boolean;
+  file?: string;
+  events: string[];
+  playing: boolean;
+  waiting: boolean;
+  index: number;
+  word: number;
+  total: number;
+  state: string;
+  kind: string;
+  rate: number;
+  viewVisible: boolean;
+  detached: false | 'above' | 'below';
+  sentenceText?: string;
+  wordText?: string;
+  expectedWord?: string;
+  editors: number;
+  stale: boolean;
+}
 
 const state = () => vscode.commands.executeCommand<State>('clearMarkdown.testState');
 
@@ -14,82 +33,111 @@ async function until(check: (s: State) => boolean, label: string, timeout = 120_
   while (Date.now() - started < timeout) {
     last = await state();
     if (check(last)) return last;
-    await new Promise(resolve => setTimeout(resolve, 250));
+    await new Promise(resolve => setTimeout(resolve, 100));
   }
   throw new Error(`Timed out waiting for ${label}. Last state: ${JSON.stringify(last)}`);
 }
 
-async function closeReaders(): Promise<void> {
-  const tabs = vscode.window.tabGroups.all.flatMap(group => group.tabs).filter(tab => tab.input instanceof vscode.TabInputWebview);
-  await vscode.window.tabGroups.close(tabs);
-  await until(s => s.sessions === 0, 'readers to close', 10_000);
-}
+const stats = (events: string[], prefix: string) => events.filter(e => e.startsWith(prefix)).map(e => Number(e.slice(prefix.length)));
 
 export async function run(): Promise<void> {
   const extension = vscode.extensions.getExtension('orexii.clear-markdown-reader');
   assert.ok(extension, 'extension is discoverable');
   await extension.activate();
   const file = path.join(os.tmpdir(), `clear-markdown-e2e-${Date.now()}.md`);
-  const story = Array.from({ length: 10 }, (_, i) => `Sentence ${i + 1} keeps the reader busy for a few seconds so that hidden playback can be measured.`).join(' ');
-  await writeFile(file, `# Integration test\n\nThe ANF team reads tables, row by row.\n\n- **First:** flowing prose.\n\n| Service | State |\n| --- | --- |\n| Mail | Ready |\n\n${story}\n`);
-  const other = await vscode.workspace.openTextDocument({ language: 'plaintext', content: 'Covering the reader tab.' });
+  const story = Array.from({ length: 14 }, (_, i) => `Sentence ${i + 1} keeps the reader busy for a few seconds so that playback can be measured.`).join(' ');
+  const text = `# Integration test\n\nThe ANF team reads tables, row by row.\n\n- **First:** flowing prose.\n\n| Service | State |\n| --- | --- |\n| Mail | Ready |\n\n${story}\n`;
+  await writeFile(file, text);
   const document = await vscode.workspace.openTextDocument(file);
-  await vscode.window.showTextDocument(document);
+  const editor = await vscode.window.showTextDocument(document);
   const config = vscode.workspace.getConfiguration('clearMarkdown');
 
   if (process.env.CMR_E2E_EXPECT_GESTURE === '1') {
-    // A normal VS Code launch blocks webview sound until a click: the reader must ask for it clearly.
+    // A normal VS Code launch blocks webview sound until a click: the player must show itself and ask.
     await vscode.commands.executeCommand('clearMarkdown.read');
-    const blocked = await until(s => s.events.includes('needs-gesture') || s.events.includes('playing'), 'the reader to request a click');
-    assert.ok(blocked.events.includes('needs-gesture'), `Expected a Start listening prompt: ${blocked.events.join(' | ')}`);
+    const blocked = await until(s => s.events.includes('needs-gesture') || s.events.includes('playing'), 'the player to request a click');
+    assert.ok(blocked.events.includes('needs-gesture'), `Expected a Start prompt: ${blocked.events.join(' | ')}`);
     assert.ok(blocked.events.includes('audio'), 'natural audio was generated before the prompt');
-    await closeReaders();
-    console.log('Extension host: normal launch shows Start listening after generating natural audio.');
+    assert.ok(blocked.viewVisible, 'the player view is shown so the listener can click Start');
+    assert.ok(blocked.sentenceText, 'the first sentence is already highlighted in the editor');
+    await vscode.commands.executeCommand('clearMarkdown.stop');
+    console.log('Extension host: a normal launch shows the player with Start after generating natural audio.');
     return;
   }
 
   // Natural voice, using the model seeded into this profile's global storage by the harness. The
-  // first playback needs one click in the webview; the harness clicks Start listening for real.
+  // first playback needs one click in the player; the harness clicks Start for real when asked.
   await config.update('engine', 'natural', vscode.ConfigurationTarget.Global);
   await vscode.commands.executeCommand('clearMarkdown.read');
-  let current = await until(s => s.events.includes('playing') || s.events.some(e => /error/.test(e)), 'natural voice playback in the webview');
-  assert.ok(current.events.includes('playing'), `Webview did not play: ${current.events.join(' | ')}`);
+  let current = await until(s => s.events.includes('playing') || s.events.some(e => /error/.test(e)), 'natural voice playback');
+  assert.ok(current.events.includes('playing'), `Player did not play: ${current.events.join(' | ')}`);
   assert.equal(current.kind, 'natural');
-  await until(s => s.playing === true, 'playing state');
+  assert.equal(current.file, path.basename(file));
+
+  // The editor shows the sentence and the exact word being spoken.
+  current = await until(s => !!s.wordText && !!s.expectedWord, 'a highlighted word');
+  assert.ok(current.sentenceText && current.sentenceText.length > 3, 'sentence highlighted');
+  assert.equal(current.wordText!.replace(/[*_`]/g, ''), current.expectedWord, 'the highlighted word is the one being spoken');
+  assert.ok(text.includes(current.sentenceText!), 'the highlight covers real document text');
+
   await vscode.commands.executeCommand('clearMarkdown.togglePlay');
-  await until(s => s.playing === false, 'pause from the command');
+  await until(s => !s.playing, 'pause from the command');
+  const paused = (await state()).index;
   await vscode.commands.executeCommand('clearMarkdown.nextSentence');
-  current = await until(s => (s.index ?? 0) > 0, 'next sentence command');
+  await until(s => s.index === paused + 1, 'next sentence command');
   await vscode.commands.executeCommand('clearMarkdown.togglePlay');
-  await until(s => s.playing === true, 'resume without another click');
+  await until(s => s.playing, 'resume without another click');
 
-  // Hide the reader behind another tab in its group: playback should carry on in the background.
-  const group = vscode.window.tabGroups.all.find(g => g.tabs.some(tab => tab.input instanceof vscode.TabInputWebview))!;
-  await vscode.window.showTextDocument(other, { viewColumn: group.viewColumn, preserveFocus: true });
-  const hiddenFrom = (await state()).index ?? 0;
-  const hidden = await until(s => (s.index ?? 0) >= hiddenFrom + 2 || s.events.includes('finished'), 'progress while the reader is hidden', 60_000)
-    .catch(error => ({ ...({} as State), events: [], error: String(error) } as State & { error?: string }));
-  console.log(`Background: index ${hiddenFrom} -> ${hidden.index ?? '?'} while hidden${(hidden as { error?: string }).error ? ' (no progress)' : ''}.`);
-  await vscode.commands.executeCommand('clearMarkdown.showReader');
-  assert.ok(!(hidden as { error?: string }).error, 'reading continues while the reader tab is hidden');
-  await until(s => s.events.includes('finished'), 'reaching the end of the document', 240_000);
-  console.log(`Natural voice: played ${current.total} passages in the VS Code webview.`);
+  // Read from the cursor in the table: the reading moves there without rebuilding.
+  editor.selection = new vscode.Selection(new vscode.Position(8, 9), new vscode.Position(8, 9));
+  await vscode.commands.executeCommand('clearMarkdown.readFromCursor');
+  current = await until(s => s.sentenceText === '| Mail | Ready |', 'reading the table row at the cursor');
 
-  // The reader panel is reused, so reading a selection plays immediately with no new click.
-  const editor = await vscode.window.showTextDocument(document);
-  editor.selection = new vscode.Selection(new vscode.Position(4, 0), new vscode.Position(4, 30));
+  // Editing while listening keeps the highlight on the words being spoken.
+  await editor.edit(edit => edit.insert(new vscode.Position(0, 0), 'Added while listening.\n\n'));
+  current = await until(s => s.stale && s.index > current.index && !!s.wordText && !!s.expectedWord, 'reading on after an edit');
+  assert.equal(current.wordText!.replace(/[*_`]/g, ''), current.expectedWord, 'highlights moved with the edit');
+  await document.save();
+
+  // Close the sidebar: the hidden player keeps playing at double speed while the editor follows along.
+  await vscode.commands.executeCommand('workbench.action.closeSidebar');
+  for (let i = 0; i < 4; i++) await vscode.commands.executeCommand('clearMarkdown.faster');
+  current = await until(s => s.rate === 2 && !s.viewVisible, 'double speed with the player hidden');
+  const hiddenFrom = current.index;
+  await until(s => s.index >= hiddenFrom + 3, 'progress while the player is hidden', 60_000);
+  current = await until(s => s.events.includes('finished'), 'reaching the end of the document', 240_000);
+  const stalls = current.events.filter(e => /^stall \d+$/.test(e)).length;
+  const gaps = stats(current.events, 'gap ');
+  const late = current.events.filter(e => e === 'late-start').length;
+  const sorted = [...gaps].sort((a, b) => a - b);
+  console.log(`Natural voice: ${current.total} passages; ${stalls} stall(s); ${late} late start(s); ${gaps.length} track handoffs, ` +
+    `gap median ${sorted[Math.floor(sorted.length / 2)] ?? 'n/a'} ms, max ${sorted.at(-1) ?? 'n/a'} ms.`);
+  assert.ok(stalls <= 1, `playback stalled ${stalls} times at double speed: ${current.events.join(' | ')}`);
+  assert.ok(gaps.every(gap => gap < 250), `a track handoff left an audible gap: ${gaps.join(', ')}`);
+  await vscode.commands.executeCommand('clearMarkdown.slower');
+  await vscode.commands.executeCommand('clearMarkdown.slower');
+  await vscode.commands.executeCommand('clearMarkdown.slower');
+  await vscode.commands.executeCommand('clearMarkdown.slower');
+
+  // The player is reused, so reading a selection plays at once with no new click.
+  await vscode.window.showTextDocument(document);
+  const selectionEditor = vscode.window.activeTextEditor!;
+  selectionEditor.selection = new vscode.Selection(new vscode.Position(4, 0), new vscode.Position(4, 38));
   await vscode.commands.executeCommand('clearMarkdown.readSelection');
   current = await until(s => s.total === 1 && (s.events.includes('playing') || s.events.includes('needs-gesture')), 'selection playback');
-  assert.ok(!current.events.includes('needs-gesture'), 'a reused reader must not ask for another click');
-  assert.equal(current.sessions, 1);
+  assert.ok(!current.events.includes('needs-gesture'), 'a reused player must not ask for another click');
+  current = await until(s => !!s.sentenceText, 'selection highlight');
+  assert.equal(current.sentenceText, 'The ANF team reads tables, row by row.');
 
-  // Changing the engine setting applies live; the next read uses system voices.
+  // Changing the engine setting applies live; the next document uses system voices.
   await config.update('engine', 'system', vscode.ConfigurationTarget.Global);
-  await vscode.window.showTextDocument(document);
   await vscode.commands.executeCommand('clearMarkdown.readFromTop');
   current = await until(s => s.kind === 'system' && (s.events.includes('playing') || s.events.includes('needs-gesture')), 'system voice playback');
   assert.ok(current.events.includes('playing'), `System voice did not play: ${current.events.join(' | ')}`);
-  await closeReaders();
+  await vscode.commands.executeCommand('clearMarkdown.stop');
+  current = await until(s => !s.loaded, 'stop');
+  assert.equal(current.sentenceText, undefined, 'stopping clears the highlight');
   await config.update('engine', undefined, vscode.ConfigurationTarget.Global);
-  console.log('Extension host: natural voice, commands, selection and system voice playback passed.');
+  await config.update('rate', undefined, vscode.ConfigurationTarget.Global);
+  console.log('Extension host: natural voice, editor highlighting, commands, hidden player, selection and system voice passed.');
 }

@@ -1,51 +1,59 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
-import { randomBytes } from 'node:crypto';
-import { buildDocument, type ReaderDocument } from './document';
+import { buildDocument, type ReaderDocument, type SourceRange } from './document';
 import { Scheduler } from './scheduler';
-import { planMessage } from './plan';
+import { planMessage, type PlanStart } from './plan';
 import type { SpeechEngine } from './engine/client';
 import { MODELS, VOICES, voiceInfo } from './model';
 import { dictionaryFrom } from './engine/pronounce';
+import { parseWav } from './engine/wav';
 import { describeBlock } from './copilot';
-import { readerMarkup } from './markup';
+import { applyChanges, locate, shiftRange, type TextChange } from './ranges';
+import { SPEEDS } from './markup';
 import type { Services, Settings } from './services';
+import type { PlayerMessage, PlayerView } from './view';
+import type { EditorHighlight } from './highlight';
+import type { Controls } from './controls';
 
 type EngineState = 'loading' | 'ready' | 'missing' | 'downloading' | 'error';
-export type Start = 'resume' | 'top' | { line: number };
+export type Start = 'resume' | 'top' | { line: number; character: number };
 
 export interface OpenOptions {
   document: vscode.TextDocument;
-  /** Selected text to read instead of the whole document. */
-  selection?: vscode.Selection;
+  /** Text to read instead of the whole document. */
+  selection?: vscode.Range;
   start: Start;
-  autoplay: boolean;
 }
 
-interface Message {
-  type: string;
-  revision?: number;
-  indices?: number[];
-  index?: number;
-  playing?: boolean;
-  elapsed?: number;
-  total?: number;
-  key?: string;
-  value?: unknown;
-  href?: string;
-  block?: number;
-  text?: string;
-  event?: string;
+interface Reading {
+  document: vscode.TextDocument;
+  uri: vscode.Uri;
+  title: string;
+  /** The part of the document being read, or undefined for all of it. */
+  selection: SourceRange | undefined;
+  doc: ReaderDocument;
+  /** Approved Copilot narration by block. */
+  overrides: Map<number, string>;
+  /** The document was edited after the narration was built. */
+  stale: boolean;
 }
 
-export class ReaderSession implements vscode.Disposable {
-  static readonly sessions = new Set<ReaderSession>();
-  static active: ReaderSession | undefined;
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const toSource = (range: vscode.Range): SourceRange => ({ line: range.start.line, character: range.start.character, endLine: range.end.line, endCharacter: range.end.character });
+const toRange = (range: SourceRange) => new vscode.Range(range.line, range.character, range.endLine, range.endCharacter);
 
-  private readonly panel: vscode.WebviewPanel;
-  private uri: vscode.Uri;
-  private doc: ReaderDocument;
+/** Reads one Markdown document at a time: narration, speech, the player view and editor highlighting. */
+export class Reader implements vscode.Disposable {
+  private reading: Reading | undefined;
   private settings: Settings;
+  private index = 0;
+  private word = -1;
+  private playing = false;
+  private waiting = false;
+  private elapsed = 0;
+  private total = 0;
+  private rate: number;
+  private start: PlanStart = { index: 0, offset: 0, word: -1, autoplay: false };
   private revision = 0;
   private engine: SpeechEngine | undefined;
   private scheduler: Scheduler | undefined;
@@ -55,137 +63,212 @@ export class ReaderSession implements vscode.Disposable {
   private kind: 'natural' | 'system';
   private voices: { id: string; label: string }[] = [];
   private voice = '';
-  private index = 0;
-  private playing = false;
-  private elapsed = 0;
-  private total = 0;
-  private readonly overrides = new Map<number, string>();
   private download: AbortController | undefined;
   private saveTimer: NodeJS.Timeout | undefined;
-  private readonly disposables: vscode.Disposable[] = [];
+  private acquired = false;
   private disposed = false;
-  private start: { index: number; offset: number; autoplay: boolean };
-  /** Events reported by the webview; used by the integration test to confirm real playback. */
+  private readonly disposables: vscode.Disposable[] = [];
+  private readonly changed = new vscode.EventEmitter<void>();
+  /** Fires when the document being read, or its Copilot descriptions, change. */
+  readonly onDidChangeReading = this.changed.event;
+  /** Diagnostic events reported by the player, used by the integration test. */
   readonly events: string[] = [];
 
-  private constructor(private readonly services: Services, private options: OpenOptions) {
-    this.uri = options.document.uri;
+  constructor(private readonly services: Services, private readonly view: PlayerView, private readonly highlight: EditorHighlight, private readonly controls: Controls) {
     this.settings = services.settings();
     this.kind = this.settings.engine;
-    this.doc = this.build();
-    this.start = { index: this.startIndex(options.start), offset: 0, autoplay: options.autoplay };
-    const media = vscode.Uri.joinPath(services.context.extensionUri, 'media');
-    this.panel = vscode.window.createWebviewPanel('clearMarkdown.reader', `Read: ${path.posix.basename(this.uri.path)}`,
-      { viewColumn: vscode.ViewColumn.Beside, preserveFocus: false },
-      { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [media] });
-    this.panel.iconPath = vscode.Uri.joinPath(media, 'icon.svg');
-    this.panel.webview.html = this.html();
-    services.acquire();
+    this.rate = this.settings.rate;
+    highlight.configure({ follow: this.settings.followInEditor, words: this.settings.highlightWords });
     this.disposables.push(
-      this.panel.webview.onDidReceiveMessage((message: unknown) => {
-        if (!message || typeof message !== 'object' || typeof (message as Message).type !== 'string') return;
-        void this.handle(message as Message).catch(error => this.fail(error));
+      this.changed,
+      view.onMessage(message => void this.handle(message).catch(error => this.fail(error))),
+      view.onDidClose(() => {
+        this.playing = false;
+        this.waiting = false;
+        this.start.autoplay = false;
+        this.updateControls();
       }),
-      this.panel.onDidChangeViewState(() => {
-        if (this.panel.active) ReaderSession.focus(this);
-      }),
-      this.panel.onDidDispose(() => this.dispose()),
-      vscode.workspace.onDidChangeTextDocument(event => {
-        if (event.document.uri.toString() === this.uri.toString() && event.contentChanges.length) this.post({ type: 'stale' });
-      }),
-      vscode.window.onDidChangeVisibleTextEditors(() => this.decorate()),
+      highlight.onDidChangeDetached(() => this.updateControls()),
+      vscode.workspace.onDidChangeTextDocument(event => this.edited(event)),
       vscode.workspace.onDidChangeConfiguration(event => {
         if (event.affectsConfiguration('clearMarkdown')) void this.configurationChanged(event).catch(error => this.fail(error));
       })
     );
-    ReaderSession.sessions.add(this);
-    ReaderSession.focus(this);
   }
 
-  /**
-   * Opens the reader, reusing the existing panel: VS Code only lets a webview play sound after a
-   * gesture inside it, so keeping one panel means later documents can start playing immediately.
-   */
-  static open(services: Services, options: OpenOptions): ReaderSession {
-    const existing = ReaderSession.active ?? [...ReaderSession.sessions][0];
-    if (existing) {
-      existing.load(options);
-      return existing;
+  get active(): boolean {
+    return !!this.reading;
+  }
+
+  isReading(uri: vscode.Uri): boolean {
+    return this.reading?.uri.toString() === uri.toString();
+  }
+
+  /** Starts reading a document, or moves within it when it is already loaded. */
+  async open(options: OpenOptions): Promise<void> {
+    const current = this.reading;
+    const selection = options.selection && !options.selection.isEmpty ? toSource(options.selection) : undefined;
+    if (current && !current.stale && !selection && !current.selection && current.uri.toString() === options.document.uri.toString()) {
+      // Reuse the narration and the audio already made for it.
+      this.highlight.backToReading();
+      if (options.start === 'top') this.command('seek', { index: 0, word: -1, play: true });
+      else if (typeof options.start === 'object') this.command('seek', { ...locate(current.doc, options.start), play: true });
+      else this.command('play');
+      return;
     }
-    return new ReaderSession(services, options);
-  }
-
-  private load(options: OpenOptions): void {
-    clearTimeout(this.saveTimer);
-    const previous = { options: this.options, uri: this.uri, doc: this.doc, settings: this.settings };
-    this.options = options;
-    this.uri = options.document.uri;
     this.settings = this.services.settings();
-    try {
-      this.doc = buildDocument(this.text().text, { tableMode: this.settings.tableMode, codeBlocks: this.settings.codeBlocks, lineOffset: this.text().offset });
-      if (!this.doc.utterances.length) throw new Error('There is no readable text in this Markdown.');
-    } catch (error) {
-      Object.assign(this, previous);
-      throw error;
-    }
-    void this.savePosition(previous.uri, previous.options, previous.doc);
-    this.clearDecorations(previous.uri);
-    this.overrides.clear();
-    this.events.length = 0;
-    this.index = 0;
+    const reading = this.build(options.document, selection, new Map());
+    clearTimeout(this.saveTimer);
+    this.saveTimer = undefined;
+    await this.save();
+    this.highlight.clear();
+    this.reading = reading;
+    const at = this.startAt(reading, options.start);
+    this.index = at.index;
+    this.word = -1;
     this.playing = false;
-    this.start = { index: this.startIndex(options.start), offset: 0, autoplay: options.autoplay };
-    this.panel.title = `Read: ${path.posix.basename(this.uri.path)}`;
-    this.panel.reveal(undefined, false);
+    this.waiting = false;
+    this.elapsed = 0;
+    this.total = 0;
+    this.start = { index: at.index, offset: 0, word: at.word, autoplay: true };
+    this.events.length = 0;
+    if (!this.acquired) {
+      this.services.acquire();
+      this.acquired = true;
+    }
+    this.view.description = reading.title;
     this.renew();
     this.sendPlan();
-    ReaderSession.focus(this);
+    this.showPosition();
+    this.updateControls();
+    this.changed.fire();
+    // The shared engine stops after a while unused, so pick it again for every new document.
+    void this.selectEngine().catch(error => this.fail(error));
+    if (!this.view.ready) await this.view.reveal(true);
   }
 
-  private clearDecorations(uri: vscode.Uri): void {
-    for (const editor of vscode.window.visibleTextEditors) {
-      if (editor.document.uri.toString() === uri.toString()) editor.setDecorations(this.services.decoration, []);
-    }
+  private build(document: vscode.TextDocument, selection: SourceRange | undefined, overrides: Map<number, string>): Reading {
+    const doc = buildDocument(document.getText(selection ? toRange(selection) : undefined), {
+      tableMode: this.settings.tableMode, codeBlocks: this.settings.codeBlocks,
+      lineOffset: selection?.line ?? 0, characterOffset: selection?.character ?? 0, overrides
+    });
+    if (!doc.utterances.length) throw new Error(selection ? 'There is no readable text in the selection.' : 'There is no readable text in this Markdown.');
+    return { document, uri: document.uri, title: path.posix.basename(document.uri.path), selection, doc, overrides, stale: false };
   }
 
-  private static focus(session: ReaderSession | undefined): void {
-    ReaderSession.active = session;
-    void vscode.commands.executeCommand('setContext', 'clearMarkdown.playerActive', !!session);
-    session?.updateStatus();
-    session?.decorate();
-  }
-
-  private text(): { text: string; offset: number } {
-    const selection = this.options.selection;
-    if (selection && !selection.isEmpty) return { text: this.options.document.getText(selection), offset: selection.start.line };
-    return { text: this.options.document.getText(), offset: 0 };
-  }
-
-  private build(): ReaderDocument {
-    const { text, offset } = this.text();
-    const doc = buildDocument(text, { tableMode: this.settings.tableMode, codeBlocks: this.settings.codeBlocks, lineOffset: offset, overrides: this.overrides });
-    if (!doc.utterances.length) throw new Error('There is no readable text in this Markdown.');
-    return doc;
-  }
-
-  private startIndex(start: Start): number {
-    const utterances = this.doc.utterances;
-    const byLine = (line: number) => {
-      const found = utterances.findIndex(u => u.endLine > line);
-      return found < 0 ? 0 : found;
-    };
-    if (start === 'top') return 0;
+  private startAt(reading: Reading, start: Start): { index: number; word: number } {
+    const { utterances } = reading.doc;
+    if (start === 'top') return { index: 0, word: -1 };
     if (start === 'resume') {
-      const saved = this.options.selection ? undefined : this.services.position(this.uri);
-      if (!saved) return 0;
-      const index = utterances[saved.index]?.line === saved.line ? saved.index : byLine(saved.line);
-      return index >= utterances.length - 1 ? 0 : index;
+      const saved = reading.selection ? undefined : this.services.position(reading.uri);
+      if (!saved) return { index: 0, word: -1 };
+      const index = utterances[saved.index]?.line === saved.line ? saved.index : Math.max(0, utterances.findIndex(u => u.endLine > saved.line));
+      return { index: index >= utterances.length - 1 ? 0 : index, word: -1 };
     }
-    return byLine(start.line);
+    return locate(reading.doc, start);
+  }
+
+  /** Rebuilds the narration (after edits, a setting change or a Copilot description), keeping the listener's place. */
+  private rebuild(withOverrides: boolean): void {
+    const reading = this.reading;
+    if (!reading) return;
+    this.settings = this.services.settings();
+    const utterance = reading.doc.utterances[this.index];
+    const place = utterance?.words[Math.max(0, this.word)]?.range ?? utterance?.range;
+    const block = utterance?.block;
+    const next = this.build(reading.document, reading.selection, withOverrides ? reading.overrides : new Map());
+    this.reading = next;
+    const first = block === undefined ? -1 : next.doc.blocks[block]?.first ?? -1;
+    const at = place ? locate(next.doc, { line: place.line, character: place.character }) : { index: Math.max(0, first), word: -1 };
+    this.index = at.index;
+    this.word = -1;
+    this.start = { index: at.index, offset: 0, word: at.word, autoplay: this.playing };
+    this.renew();
+    this.sendPlan();
+    this.showPosition();
+    this.updateControls();
+    this.changed.fire();
+  }
+
+  /** Keeps highlights on the right text while the document is edited, and offers to update the narration. */
+  private edited(event: vscode.TextDocumentChangeEvent): void {
+    const reading = this.reading;
+    if (!reading || !event.contentChanges.length || event.document.uri.toString() !== reading.uri.toString()) return;
+    const changes: TextChange[] = event.contentChanges.map(change => ({
+      start: { line: change.range.start.line, character: change.range.start.character },
+      end: { line: change.range.end.line, character: change.range.end.character },
+      text: change.text
+    }));
+    applyChanges(reading.doc, changes);
+    if (reading.selection) {
+      let selection: SourceRange | null = reading.selection;
+      for (const change of [...changes].sort((a, b) => b.start.line - a.start.line || b.start.character - a.start.character)) {
+        selection = selection && shiftRange(selection, change);
+      }
+      reading.selection = selection ?? reading.selection;
+    }
+    if (!reading.stale) {
+      reading.stale = true;
+      this.view.post({ type: 'stale', value: true });
+    }
+    // Move the highlight with the text, but never scroll away from where the listener is typing.
+    this.showPosition(false);
+    this.changed.fire();
+  }
+
+  /** Sends a transport command to the player. */
+  command(action: string, extra: Record<string, unknown> = {}): void {
+    if (!this.reading) return;
+    if (this.view.ready) {
+      this.view.post({ type: 'command', action, ...extra });
+      return;
+    }
+    // The player is (re)loading: carry the intent into the plan it receives when ready.
+    if (action === 'seek') this.start = { index: Number(extra.index) || 0, offset: 0, word: Number(extra.word ?? -1), autoplay: !!extra.play };
+    else if (action === 'play' || action === 'togglePlay') this.start.autoplay = true;
+    void this.view.reveal(true);
+  }
+
+  async stop(): Promise<void> {
+    if (!this.reading) return;
+    this.view.post({ type: 'command', action: 'pause' });
+    clearTimeout(this.saveTimer);
+    this.saveTimer = undefined;
+    await this.save();
+    this.reading = undefined;
+    this.scheduler?.dispose();
+    this.scheduler = undefined;
+    // The shared engine shuts down after a while unused; never keep (and so restart) a stopped one.
+    this.engine = undefined;
+    this.state = 'loading';
+    this.stateMessage = '';
+    this.revision++;
+    this.playing = false;
+    this.waiting = false;
+    this.highlight.clear();
+    this.view.post({ type: 'idle' });
+    this.view.description = undefined;
+    this.updateControls();
+    this.changed.fire();
+    if (this.acquired) {
+      this.services.release();
+      this.acquired = false;
+    }
+  }
+
+  backToReading(): void {
+    this.highlight.backToReading();
+    this.showPosition();
+  }
+
+  /** Re-reads the document after it was edited, from the same place. */
+  refresh(): void {
+    if (this.reading?.selection) throw new Error('Select the text again and choose Read Selection Aloud to hear the changes.');
+    this.rebuild(false);
   }
 
   private post(message: object): void {
-    if (!this.disposed) void this.panel.webview.postMessage(message);
+    if (!this.disposed) this.view.post(message);
   }
 
   private fail(error: unknown): void {
@@ -196,12 +279,18 @@ export class ReaderSession implements vscode.Disposable {
   }
 
   private sendPlan(): void {
-    this.post(planMessage(this.doc, this.revision, this.start, {
-      rate: this.settings.rate, followInEditor: this.settings.followInEditor, highlightWords: this.settings.highlightWords,
-      skipBack: this.settings.skipBack, skipForward: this.settings.skipForward, tableMode: this.settings.tableMode,
-      codeBlocks: this.settings.codeBlocks, selection: !!this.options.selection, title: path.posix.basename(this.uri.path)
-    }, this.overrides));
+    const reading = this.reading;
+    if (!reading) {
+      this.post({ type: 'idle' });
+      return;
+    }
+    const s = this.settings;
+    this.post(planMessage(reading.doc, this.revision, this.start, {
+      rate: this.rate, followInEditor: s.followInEditor, highlightWords: s.highlightWords, skipBack: s.skipBack, skipForward: s.skipForward,
+      tableMode: s.tableMode, codeBlocks: s.codeBlocks
+    }, reading.title, !!reading.selection));
     this.sendEngine();
+    if (reading.stale) this.post({ type: 'stale', value: true });
   }
 
   private sendEngine(): void {
@@ -217,28 +306,38 @@ export class ReaderSession implements vscode.Disposable {
     this.sendEngine();
   }
 
-  /** Starts a new audio generation: any change of voice, engine or narration invalidates cached audio. */
+  /** Starts a new audio generation: any change of voice, engine or narration invalidates audio already made. */
   private renew(): void {
     this.scheduler?.dispose();
+    this.scheduler = undefined;
     this.revision++;
     const engine = this.engine;
-    if (!engine) return;
+    const reading = this.reading;
+    if (!engine || !reading) return;
     const revision = this.revision;
     this.scheduler = new Scheduler({
-      engine, utterances: this.doc.utterances, voice: this.voice,
+      engine, utterances: reading.doc.utterances, voice: this.voice,
       dictionary: [...dictionaryFrom(this.settings.pronunciations)],
       deliver: (index, segment) => {
-        if (revision === this.revision) this.post({ type: 'audio', revision, index, wav: segment.wav, duration: segment.duration, wordTimes: segment.wordTimes });
+        if (revision !== this.revision) return;
+        const info = parseWav(segment.wav);
+        this.post({
+          type: 'audio', revision, index, times: segment.wordTimes,
+          pcm: segment.wav.slice(info.dataOffset, info.dataOffset + info.dataLength),
+          format: { sampleRate: info.sampleRate, channels: info.channels, bits: info.bits, blockAlign: info.blockAlign }
+        });
       },
       fail: (index, error) => {
         if (revision !== this.revision) return;
         this.services.output.appendLine(`Speech failed at passage ${index + 1}: ${error.message}`);
         this.post({ type: 'error', revision, index, message: `Speech failed: ${error.message}` });
-      }
+      },
+      log: message => this.services.output.appendLine(message)
     });
   }
 
   private async selectEngine(): Promise<void> {
+    if (this.download) return;
     this.settings = this.services.settings();
     if (this.settings.engine === 'system') return this.useSystem();
     const { store } = this.services;
@@ -255,8 +354,17 @@ export class ReaderSession implements vscode.Disposable {
   private async useNatural(): Promise<void> {
     this.kind = 'natural';
     this.voices = VOICES.map(v => ({ id: v.id, label: `${v.name} · ${v.accent === 'British' ? 'UK' : 'US'} ${v.gender.toLowerCase()} · ${v.grade}` }));
-    this.voice = this.settings.naturalVoice;
+    const voice = this.settings.naturalVoice;
     const engine = this.services.naturalEngine(this.settings.quality, this.services.threads(this.settings.threads));
+    if (this.engine === engine && this.state === 'ready') {
+      if (voice !== this.voice) {
+        this.voice = voice;
+        this.renew();
+      }
+      this.sendEngine();
+      return;
+    }
+    this.voice = voice;
     this.engine = undefined;
     this.renew();
     this.setState('loading');
@@ -266,20 +374,30 @@ export class ReaderSession implements vscode.Disposable {
       this.setState('error', `The natural voice could not start: ${error instanceof Error ? error.message : String(error)}`);
       return;
     }
-    if (this.disposed) return;
+    if (this.disposed || !this.reading) return;
     this.engine = engine;
     this.renew();
     this.setState('ready');
   }
 
   private async useSystem(): Promise<void> {
+    if (this.kind === 'system' && this.engine?.kind === 'system' && this.state === 'ready') {
+      // Already running: only follow a changed voice setting.
+      const voice = this.voices.some(v => v.id === this.settings.systemVoice) ? this.settings.systemVoice : '';
+      if (voice !== this.voice) {
+        this.voice = voice;
+        this.renew();
+      }
+      this.sendEngine();
+      return;
+    }
     this.kind = 'system';
     this.engine = undefined;
     this.renew();
     this.setState('loading');
     try {
       const { engine, voices } = await this.services.systemEngine();
-      if (this.disposed) return;
+      if (this.disposed || !this.reading) return;
       this.voices = voices;
       this.voice = voices.some(v => v.id === this.settings.systemVoice) ? this.settings.systemVoice : '';
       this.engine = engine;
@@ -306,6 +424,7 @@ export class ReaderSession implements vscode.Disposable {
           this.sendEngine();
         }
       }, controller.signal);
+      this.download = undefined;
       await this.services.update('engine', 'natural');
       this.settings = this.services.settings();
       await this.useNatural();
@@ -316,7 +435,7 @@ export class ReaderSession implements vscode.Disposable {
     }
   }
 
-  private async changeVoice(voice: string): Promise<void> {
+  async changeVoice(voice: string): Promise<void> {
     if (this.kind === 'natural') {
       if (!voiceInfo(voice)) throw new Error('Choose a voice from the list.');
       if (!await this.services.store.hasVoice(voice)) {
@@ -341,39 +460,29 @@ export class ReaderSession implements vscode.Disposable {
     this.setState('ready');
   }
 
-  /** Rebuilds narration (after a setting change, an edit or a Copilot description) and keeps the listener's place. */
-  private rebuild(): void {
-    const block = this.doc.utterances[this.index]?.block;
-    this.settings = this.services.settings();
-    this.doc = this.build();
-    const first = block === undefined ? -1 : this.doc.blocks[block]?.first ?? -1;
-    this.start = { index: first >= 0 ? first : Math.min(this.index, this.doc.utterances.length - 1), offset: 0, autoplay: this.playing };
-    this.renew();
-    this.sendPlan();
+  /** Voices the current engine offers, for the voice picker. */
+  voiceChoices(): { voices: { id: string; label: string }[]; voice: string; kind: 'natural' | 'system' } {
+    return { voices: this.voices, voice: this.voice, kind: this.kind };
   }
 
-  private async handle(message: Message): Promise<void> {
+  private async handle(message: PlayerMessage): Promise<void> {
     switch (message.type) {
       case 'ready':
         this.sendPlan();
-        await this.selectEngine();
         break;
       case 'need':
-        if (message.revision === this.revision && Array.isArray(message.indices)) this.scheduler?.need(message.indices.slice(0, 60));
+        if (message.revision === this.revision && Array.isArray(message.indices)) {
+          this.scheduler?.need((message.indices as number[]).slice(0, 60), Number(message.ahead) || 0, Number(message.rate) || 1);
+        }
         break;
-      case 'position': {
-        const changed = message.index !== this.index;
-        this.index = Math.max(0, Math.min(Number(message.index) || 0, this.doc.utterances.length - 1));
-        this.playing = !!message.playing;
-        this.elapsed = Number(message.elapsed) || 0;
-        this.total = Number(message.total) || 0;
-        if (changed) this.decorate();
-        this.updateStatus();
-        this.scheduleSave();
+      case 'position':
+        this.position(message);
         break;
-      }
       case 'event':
-        if (typeof message.event === 'string') this.events.push(message.event);
+        if (typeof message.event !== 'string') break;
+        if (this.events.length < 5000) this.events.push(message.event);
+        // Sound needs a click or key press in the player first: make sure the listener can see it.
+        if (message.event === 'needs-gesture') await this.view.reveal(true);
         break;
       case 'setting':
         await this.setting(String(message.key), message.value);
@@ -399,35 +508,58 @@ export class ReaderSession implements vscode.Disposable {
       case 'retry':
         await this.selectEngine();
         break;
-      case 'reveal':
-        await this.reveal(Number(message.index));
-        break;
-      case 'openLink':
-        if (typeof message.href === 'string' && /^(https?:|mailto:)/i.test(message.href)) await vscode.env.openExternal(vscode.Uri.parse(message.href));
+      case 'readActive':
+        await vscode.commands.executeCommand('clearMarkdown.read');
         break;
       case 'refresh':
-        this.rebuild();
-        break;
-      case 'describe':
-        await this.describe(Number(message.block));
-        break;
-      case 'useDescription':
-        if (typeof message.text === 'string' && this.doc.blocks[Number(message.block)]) {
-          this.overrides.set(Number(message.block), message.text);
-          this.rebuild();
-        }
-        break;
-      case 'restore':
-        this.overrides.delete(Number(message.block));
-        this.rebuild();
+        this.refresh();
         break;
     }
+  }
+
+  private position(message: PlayerMessage): void {
+    const reading = this.reading;
+    if (!reading || message.revision !== this.revision) return;
+    const index = clamp(Math.round(Number(message.index) || 0), 0, reading.doc.utterances.length - 1);
+    const word = Number.isInteger(message.word) ? Number(message.word) : -1;
+    const moved = index !== this.index || word !== this.word;
+    this.index = index;
+    this.word = word;
+    this.playing = !!message.playing;
+    this.waiting = !!message.waiting;
+    this.elapsed = Number(message.elapsed) || 0;
+    this.total = Number(message.total) || 0;
+    if (typeof message.rate === 'number' && SPEEDS.includes(message.rate as typeof SPEEDS[number])) this.rate = message.rate;
+    this.start = { index, offset: Number(message.offset) || 0, word: -1, autoplay: this.playing };
+    if (moved) this.showPosition();
+    this.updateControls();
+    this.scheduleSave();
+  }
+
+  private showPosition(scroll = true): void {
+    const reading = this.reading;
+    if (!reading) return;
+    const utterance = reading.doc.utterances[this.index];
+    const word = this.word >= 0 ? utterance?.words[this.word]?.range ?? null : null;
+    this.highlight.show(reading.uri, utterance?.range ?? null, word, scroll);
+  }
+
+  private updateControls(): void {
+    const s = this.settings;
+    this.controls.update({
+      uri: this.reading?.uri, title: this.reading?.title, playing: this.playing, waiting: this.waiting, elapsed: this.elapsed, total: this.total,
+      rate: this.rate, skipBack: s.skipBack, skipForward: s.skipForward, detached: this.highlight.isDetached
+    });
   }
 
   private async setting(key: string, value: unknown): Promise<void> {
     switch (key) {
       case 'rate':
-        if (typeof value === 'number' && value >= 0.5 && value <= 3) await this.services.update('rate', value);
+        if (typeof value === 'number' && SPEEDS.includes(value as typeof SPEEDS[number])) {
+          this.rate = value;
+          this.updateControls();
+          await this.services.update('rate', value);
+        }
         break;
       case 'voice':
         if (typeof value === 'string') await this.changeVoice(value);
@@ -446,12 +578,31 @@ export class ReaderSession implements vscode.Disposable {
     }
   }
 
-  /** Applies settings changed outside the reader (Settings editor, settings.json or another window). */
+  /** Sets the speed from a command; the player applies it at once and saves it. */
+  setRate(value: number): void {
+    if (!SPEEDS.includes(value as typeof SPEEDS[number])) return;
+    this.rate = value;
+    this.updateControls();
+    if (this.reading && this.view.ready) this.post({ type: 'command', action: 'setRate', value });
+    else void this.services.update('rate', value);
+  }
+
+  get speed(): number {
+    return this.rate;
+  }
+
+  /** Applies settings changed outside the player (Settings editor, settings.json or another window). */
   private async configurationChanged(event: vscode.ConfigurationChangeEvent): Promise<void> {
     const before = this.settings;
     const after = this.services.settings();
     const changed = (key: string) => event.affectsConfiguration(`clearMarkdown.${key}`);
     this.settings = after;
+    if (!this.reading) {
+      this.kind = after.engine;
+      this.rate = after.rate;
+      this.highlight.configure({ follow: after.followInEditor, words: after.highlightWords });
+      return;
+    }
     if (changed('engine') || changed('naturalQuality') || changed('threads')) {
       if (after.engine !== this.kind || after.quality !== before.quality || after.threads !== before.threads) await this.selectEngine();
     } else if ((changed('naturalVoice') || changed('systemVoice')) && this.state === 'ready') {
@@ -459,129 +610,101 @@ export class ReaderSession implements vscode.Disposable {
       if (voice !== this.voice) await this.changeVoice(voice);
     }
     if (changed('tableMode') || changed('codeBlocks')) {
-      if (after.tableMode !== before.tableMode || after.codeBlocks !== before.codeBlocks) this.rebuild();
+      if (after.tableMode !== before.tableMode || after.codeBlocks !== before.codeBlocks) this.rebuild(true);
     } else if (changed('pronunciations')) {
       this.renew();
       this.sendEngine();
     }
     if (changed('rate') || changed('highlightWords') || changed('followInEditor') || changed('skipBackSeconds') || changed('skipForwardSeconds')) {
-      this.post({ type: 'settings', rate: after.rate, highlightWords: after.highlightWords, followInEditor: after.followInEditor, skipBack: after.skipBack, skipForward: after.skipForward });
-      this.decorate();
+      if (changed('rate')) this.rate = after.rate;
+      this.highlight.configure({ follow: after.followInEditor, words: after.highlightWords });
+      this.post({
+        type: 'settings', rate: this.rate, highlightWords: after.highlightWords, followInEditor: after.followInEditor,
+        skipBack: after.skipBack, skipForward: after.skipForward, tableMode: after.tableMode, codeBlocks: after.codeBlocks
+      });
+      this.showPosition();
+      this.updateControls();
     }
   }
 
-  private async describe(block: number): Promise<void> {
-    const info = this.doc.blocks[block];
-    if (!info || (info.kind !== 'table' && info.kind !== 'code')) return;
-    const document = this.options.document;
-    const range = new vscode.Range(info.line, 0, Math.min(info.endLine, document.lineCount), 0);
-    try {
-      const text = await describeBlock(this.services.context, info.kind, document.getText(range));
-      if (text) this.post({ type: 'description', block, text });
-      else this.post({ type: 'description', block });
-    } catch (error) {
-      this.post({ type: 'description', block, error: error instanceof Error ? error.message : String(error) });
-    }
+  /** Tables and code blocks in the document being read, for the Copilot CodeLens. */
+  describable(uri: vscode.Uri): { block: number; kind: 'table' | 'code'; line: number; described: boolean }[] {
+    const reading = this.reading;
+    if (!reading || reading.uri.toString() !== uri.toString() || reading.stale) return [];
+    return reading.doc.blocks.flatMap((block, index) => block.kind === 'table' || block.kind === 'code'
+      ? [{ block: index, kind: block.kind, line: block.line, described: reading.overrides.has(index) }]
+      : []);
   }
 
-  private async reveal(index: number): Promise<void> {
-    const utterance = this.doc.utterances[index];
-    if (!utterance) return;
-    const visible = vscode.window.visibleTextEditors.find(editor => editor.document.uri.toString() === this.uri.toString());
-    const editor = await vscode.window.showTextDocument(this.options.document, { viewColumn: visible?.viewColumn ?? vscode.ViewColumn.One });
-    const line = Math.min(utterance.line, editor.document.lineCount - 1);
-    const range = editor.document.lineAt(line).range;
-    editor.selection = new vscode.Selection(range.start, range.start);
-    editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+  /** The table or code block at a position in the document being read. */
+  blockAt(uri: vscode.Uri, line: number): number | undefined {
+    return this.describable(uri).find(block => {
+      const info = this.reading!.doc.blocks[block.block]!;
+      return line >= info.line && line < info.endLine;
+    })?.block;
   }
 
-  /** Highlights the block being read in the source editor and keeps it in view. */
-  private decorate(): void {
-    if (ReaderSession.active !== this) return;
-    const utterance = this.doc.utterances[this.index];
-    for (const editor of vscode.window.visibleTextEditors) {
-      if (editor.document.uri.toString() !== this.uri.toString()) continue;
-      if (!utterance || !this.settings.followInEditor) {
-        editor.setDecorations(this.services.decoration, []);
-        continue;
-      }
-      const last = editor.document.lineCount - 1;
-      const start = Math.min(utterance.line, last);
-      const end = Math.max(start, Math.min(utterance.endLine - 1, last));
-      const range = new vscode.Range(start, 0, end, editor.document.lineAt(end).text.length);
-      editor.setDecorations(this.services.decoration, [range]);
-      if (this.playing && !editor.visibleRanges.some(visible => visible.contains(range.start))) {
-        editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
-      }
-    }
+  /** Asks Copilot to describe a table or code block, and reads the description if the listener approves it. */
+  async describe(uri: vscode.Uri, block: number): Promise<void> {
+    const reading = this.reading;
+    const info = reading?.doc.blocks[block];
+    if (!reading || !this.isReading(uri) || !info || (info.kind !== 'table' && info.kind !== 'code')) return;
+    const document = reading.document;
+    const text = document.getText(new vscode.Range(info.line, 0, Math.min(info.endLine, document.lineCount), 0));
+    const description = await describeBlock(this.services.context, info.kind, text);
+    if (!description || this.reading !== reading) return;
+    const answer = await vscode.window.showInformationMessage(
+      `Read Copilot's description instead of the ${info.kind === 'table' ? 'table' : 'code'}?`,
+      { modal: true, detail: `${description}\n\nCheck it against the original before using it; AI can make mistakes.` },
+      'Read Description'
+    );
+    if (answer !== 'Read Description' || this.reading !== reading) return;
+    reading.overrides.set(block, description);
+    this.rebuild(true);
   }
 
-  private updateStatus(): void {
-    if (ReaderSession.active !== this) return;
-    const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
-    const status = this.services.status;
-    status.text = `${this.playing ? '$(debug-pause)' : '$(play)'} ${clock(this.elapsed)} / ${clock(this.total)}`;
-    status.tooltip = `Clear Markdown Reader: ${this.playing ? 'pause' : 'play'} ${path.posix.basename(this.uri.path)}`;
-    status.show();
+  restore(uri: vscode.Uri, block: number): void {
+    if (!this.reading || !this.isReading(uri) || !this.reading.overrides.delete(block)) return;
+    this.rebuild(true);
   }
 
+  /** Saves the position every few seconds while reading, so closing VS Code mid-sentence keeps the place. */
   private scheduleSave(): void {
-    if (this.options.selection) return;
-    clearTimeout(this.saveTimer);
-    this.saveTimer = setTimeout(() => void this.save(), 2000);
+    if (this.reading?.selection || this.saveTimer) return;
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = undefined;
+      void this.save();
+    }, 3000);
   }
 
-  private save(): Promise<void> {
-    return this.savePosition(this.uri, this.options, this.doc);
-  }
-
-  private async savePosition(uri: vscode.Uri, options: OpenOptions, doc: ReaderDocument): Promise<void> {
-    if (options.selection) return;
-    const utterance = doc.utterances[this.index];
-    const finished = this.index >= doc.utterances.length - 1 && !this.playing;
-    await this.services.savePosition(uri, utterance && !finished
-      ? { line: utterance.line, index: this.index, total: doc.utterances.length, at: Date.now() }
+  private async save(): Promise<void> {
+    const reading = this.reading;
+    if (!reading || reading.selection) return;
+    const utterance = reading.doc.utterances[this.index];
+    const finished = this.index >= reading.doc.utterances.length - 1 && !this.playing;
+    await this.services.savePosition(reading.uri, utterance && !finished
+      ? { line: utterance.line, index: this.index, total: reading.doc.utterances.length, at: Date.now() }
       : undefined);
   }
 
-  /** State for integration tests and diagnostics. */
-  snapshot(): { events: string[]; playing: boolean; index: number; total: number; state: string; kind: string } {
-    return { events: [...this.events], playing: this.playing, index: this.index, total: this.doc.utterances.length, state: this.state, kind: this.kind };
-  }
-
-  command(action: string): void {
-    this.post({ type: 'command', action });
-  }
-
-  show(): void {
-    this.panel.reveal(undefined, true);
-  }
-
-  private html(): string {
-    const webview = this.panel.webview;
-    const media = (file: string) => webview.asWebviewUri(vscode.Uri.joinPath(this.services.context.extensionUri, 'media', file)).toString();
-    return readerMarkup({
-      cspSource: webview.cspSource, nonce: randomBytes(18).toString('base64'), css: media('reader.css'), script: media('reader.js'),
-      skipBack: this.settings.skipBack, skipForward: this.settings.skipForward
-    });
+  /** State for the integration test and diagnostics. */
+  snapshot() {
+    return {
+      loaded: !!this.reading, file: this.reading?.title, events: [...this.events], playing: this.playing, waiting: this.waiting,
+      index: this.index, word: this.word, total: this.reading?.doc.utterances.length ?? 0, state: this.state, kind: this.kind, rate: this.rate,
+      viewVisible: this.view.visible, detached: this.highlight.isDetached, stale: !!this.reading?.stale, ...this.highlight.highlighted(),
+      expectedWord: this.word >= 0 ? this.reading?.doc.utterances[this.index]?.words[this.word]?.text : undefined
+    };
   }
 
   dispose(): void {
     if (this.disposed) return;
-    this.disposed = true;
     clearTimeout(this.saveTimer);
     void this.save();
+    this.disposed = true;
     this.download?.abort();
     this.scheduler?.dispose();
-    this.clearDecorations(this.uri);
     this.disposables.forEach(disposable => disposable.dispose());
-    this.panel.dispose();
-    this.services.release();
-    ReaderSession.sessions.delete(this);
-    if (ReaderSession.active === this) {
-      const next = [...ReaderSession.sessions].at(-1);
-      ReaderSession.focus(next);
-      if (!next) this.services.status.hide();
-    }
+    if (this.acquired) this.services.release();
   }
 }

@@ -3,20 +3,23 @@ import type Token from 'markdown-it/lib/token.mjs';
 
 export type BlockKind = 'heading' | 'paragraph' | 'item' | 'table' | 'code' | 'html';
 
+/** A span of the Markdown source, in document coordinates (zero-based, end exclusive). */
+export interface SourceRange { line: number; character: number; endLine: number; endCharacter: number }
+
 export interface SpokenWord {
   /** Text to speak for this unit, before pronunciation rules. */
   text: string;
-  /** Element highlighted while this unit is spoken; null for spoken-only cues. */
-  target: string | null;
   /** Whitespace and punctuation spoken after the unit; shapes pauses and intonation. */
   sep: string;
+  /** Source text highlighted while the unit is spoken; null for spoken-only cues. */
+  range: SourceRange | null;
 }
 
 export interface Utterance {
   block: number;
-  /** Elements highlighted for the whole utterance: sentence spans, a table row or a code block. */
-  highlight: string[];
   words: SpokenWord[];
+  /** Source highlighted for the whole utterance: the sentence, a table row or a code block. */
+  range: SourceRange | null;
   /** Total silence after this utterance, in seconds at 1x. */
   pauseAfter: number;
   line: number;
@@ -25,16 +28,14 @@ export interface Utterance {
 
 export interface ReaderBlock {
   kind: BlockKind;
-  id: string;
   line: number;
   endLine: number;
-  /** First utterance index, or -1 for blocks that are shown but not spoken. */
+  /** First utterance index, or -1 for blocks that are not spoken. */
   first: number;
   heading?: { level: number; text: string };
 }
 
 export interface ReaderDocument {
-  html: string;
   utterances: Utterance[];
   blocks: ReaderBlock[];
 }
@@ -42,12 +43,14 @@ export interface ReaderDocument {
 export interface DocumentOptions {
   tableMode: 'rows' | 'columns';
   codeBlocks: 'announce' | 'read' | 'skip';
+  /** Where the text starts in the document, for reading a selection. */
   lineOffset: number;
+  characterOffset: number;
   /** Approved replacement narration (for example from Copilot), keyed by block index. */
   overrides?: ReadonlyMap<number, string>;
 }
 
-const defaults: DocumentOptions = { tableMode: 'rows', codeBlocks: 'announce', lineOffset: 0 };
+const defaults: DocumentOptions = { tableMode: 'rows', codeBlocks: 'announce', lineOffset: 0, characterOffset: 0 };
 const parser = new MarkdownIt({ html: true, linkify: false });
 const sentenceSegmenter = new Intl.Segmenter('en', { granularity: 'sentence' });
 
@@ -77,10 +80,6 @@ export function utteranceText(utterance: Utterance): string {
   return utterance.words.map(word => word.text + word.sep).join('').trim();
 }
 
-function escapeHtml(text: string): string {
-  return text.replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]!));
-}
-
 function normalizeSeparator(text: string, final: boolean): string {
   const marks = (text.replace(/(^|\s)[–-]+(?=\s|$)/g, '$1—').match(SPOKEN_SEPARATOR) ?? []).join('');
   if (final) return /[.!?]/.test(marks) ? marks : `${marks.replace(/[,;:—]+$/, '')}.`;
@@ -101,53 +100,105 @@ function stripFrontMatter(markdown: string): string {
     '\n'.repeat((match.match(/\n/g) ?? []).length));
 }
 
-interface Run { text: string; cls: string[]; href?: string; spoken?: string; atomic?: boolean; br?: boolean; parts?: boolean }
-/** A highlightable unit; `parts` lists the spoken words when one unit (inline code) holds several. */
+/** Converts positions in the parsed text to document positions. */
+class Source {
+  readonly lines: string[];
+
+  constructor(text: string, private readonly lineOffset: number, private readonly characterOffset: number) {
+    this.lines = text.split(/\r?\n/);
+  }
+
+  position(line: number, character: number): { line: number; character: number } {
+    return { line: line + this.lineOffset, character: character + (line === 0 ? this.characterOffset : 0) };
+  }
+
+  range(start: { line: number; character: number }, end: { line: number; character: number }): SourceRange {
+    const a = this.position(start.line, start.character);
+    const b = this.position(end.line, end.character);
+    return { line: a.line, character: a.character, endLine: b.line, endCharacter: b.character };
+  }
+
+  /** The whole of parsed lines [start, end). */
+  lineRange(start: number, end: number): SourceRange {
+    const last = Math.max(start, Math.min(end, this.lines.length) - 1);
+    return this.range({ line: start, character: 0 }, { line: last, character: this.lines[last]?.length ?? 0 });
+  }
+
+  /** Extends a range over the closing punctuation, emphasis markers and link target that follow it. */
+  extend(range: SourceRange | null): SourceRange | null {
+    if (!range) return null;
+    const local = range.endLine - this.lineOffset;
+    const shift = local === 0 ? this.characterOffset : 0;
+    const text = this.lines[local] ?? '';
+    let end = range.endCharacter - shift;
+    while (end < text.length) {
+      if (text.startsWith('](', end)) {
+        const close = text.indexOf(')', end);
+        if (close < 0) break;
+        end = close + 1;
+      } else if (/[.,;:!?)\]"'”’*_~`]/.test(text[end]!)) end++;
+      else break;
+    }
+    return { ...range, endCharacter: end + shift };
+  }
+}
+
+/** Maps offsets in a token's inline content back to source positions. */
+interface Locator { at(offset: number): { line: number; character: number } | null }
+
+function locateParagraph(content: string, firstLine: number, source: Source): Locator {
+  const starts: number[] = [];
+  let offset = 0;
+  const bases = content.split('\n').map((text, k) => {
+    starts.push(offset);
+    offset += text.length + 1;
+    const probe = text.trim();
+    const sourceLine = source.lines[firstLine + k] ?? '';
+    const found = probe ? sourceLine.indexOf(probe) : -1;
+    return { line: firstLine + k, column: found < 0 ? -1 : found - (text.length - text.trimStart().length) };
+  });
+  return {
+    at(position: number) {
+      let k = starts.length - 1;
+      while (k > 0 && starts[k]! > position) k--;
+      const base = bases[k]!;
+      return base.column < 0 ? null : { line: base.line, character: base.column + position - starts[k]! };
+    }
+  };
+}
+
+function locateCell(line: number, column: number): Locator {
+  return { at: position => (column < 0 ? null : { line, character: column + position }) };
+}
+
+interface Run { text: string; spoken?: string; atomic?: boolean; parts?: boolean }
+/** A spoken unit; `parts` lists the words when one unit (inline code) holds several. */
 interface Unit { start: number; end: number; spoken: string; parts?: string[] }
 interface Inline { display: string; owner: number[]; runs: Run[]; units: Unit[] }
 
 function collectRuns(children: Token[]): Run[] {
   const runs: Run[] = [];
-  const classes: string[] = [];
-  let href: string | undefined;
   let autolink = false;
-  const remove = (name: string) => {
-    const index = classes.lastIndexOf(name);
-    if (index >= 0) classes.splice(index, 1);
-  };
   for (const child of children) {
     switch (child.type) {
       case 'text':
         if (!child.content) break;
-        if (autolink) runs.push({ text: child.content, cls: [...classes], href, spoken: spokenForm(child.content), atomic: true });
-        else runs.push({ text: child.content, cls: [...classes], href });
+        if (autolink) runs.push({ text: child.content, spoken: spokenForm(child.content), atomic: true });
+        else runs.push({ text: child.content });
         break;
-      // Inline code stays one highlighted chip even when it contains several words.
-      case 'code_inline': runs.push({ text: child.content, cls: [...classes, 'code'], href, atomic: true, parts: true }); break;
-      case 'softbreak': runs.push({ text: ' ', cls: [] }); break;
-      case 'hardbreak': runs.push({ text: ' ', cls: [], br: true }); break;
+      // Inline code is one highlighted unit even when it contains several words.
+      case 'code_inline': runs.push({ text: child.content, atomic: true, parts: true }); break;
+      case 'softbreak': case 'hardbreak': runs.push({ text: ' ' }); break;
       case 'html_inline':
-        if (/^<br\s*\/?>$/i.test(child.content)) runs.push({ text: ' ', cls: [], br: true });
+        if (/^<br\s*\/?>$/i.test(child.content)) runs.push({ text: ' ' });
         break;
       case 'image': {
         const alt = child.content.replace(/\s+/g, ' ').trim();
-        runs.push({ text: alt || 'image', cls: ['img'], spoken: alt ? `Image: ${alt}` : 'Image', atomic: true });
+        runs.push({ text: alt || 'image', spoken: alt ? `Image: ${alt}` : 'Image', atomic: true });
         break;
       }
-      case 'strong_open': classes.push('strong'); break;
-      case 'strong_close': remove('strong'); break;
-      case 'em_open': classes.push('em'); break;
-      case 'em_close': remove('em'); break;
-      case 's_open': classes.push('del'); break;
-      case 's_close': remove('del'); break;
-      case 'link_open': {
-        const target = child.attrGet('href') ?? '';
-        href = /^(?:https?:|mailto:)/i.test(target) ? target : undefined;
-        autolink = child.markup === 'autolink';
-        classes.push('link');
-        break;
-      }
-      case 'link_close': remove('link'); href = undefined; autolink = false; break;
+      case 'link_open': autolink = child.markup === 'autolink'; break;
+      case 'link_close': autolink = false; break;
     }
   }
   return runs;
@@ -192,269 +243,265 @@ function tokenize(runs: Run[]): Inline {
   return { display, owner, runs, units };
 }
 
-interface Range { start: number; end: number; units: number[] }
+interface Span { start: number; end: number; units: number[] }
 
-function sentences(inline: Inline): Range[] {
-  const ranges: Range[] = [];
+function sentences(inline: Inline): Span[] {
+  const spans: Span[] = [];
   let u = 0;
   for (const segment of sentenceSegmenter.segment(inline.display)) {
     const end = segment.index + segment.segment.length;
     const members: number[] = [];
     while (u < inline.units.length && inline.units[u]!.start < end) members.push(u++);
-    const previous = ranges.at(-1);
+    const previous = spans.at(-1);
     if (previous && segment.index < previous.end) {
       // The segmenter broke inside a unit (for example at "?" in a URL): keep one sentence.
       previous.units.push(...members);
-      previous.end = Math.max(previous.end, end, ...members.map(u => inline.units[u]!.end));
+      previous.end = Math.max(previous.end, end, ...members.map(m => inline.units[m]!.end));
     } else if (members.length) {
-      ranges.push({ start: segment.index, end: Math.max(end, inline.units[members.at(-1)!]!.end), units: members });
-    } else if (ranges.length) {
-      ranges.at(-1)!.end = Math.max(ranges.at(-1)!.end, end);
+      spans.push({ start: segment.index, end: Math.max(end, inline.units[members.at(-1)!]!.end), units: members });
+    } else if (previous) {
+      previous.end = Math.max(previous.end, end);
     }
   }
-  for (let k = 1; k < ranges.length; k++) {
-    if (ranges[k]!.start < ranges[k - 1]!.end) ranges[k]!.start = ranges[k - 1]!.end;
-  }
-  if (ranges.length) {
-    ranges[0]!.start = 0;
-    ranges.at(-1)!.end = inline.display.length;
-  }
-  return ranges;
+  return spans;
 }
 
-function pieces(inline: Inline, start: number, end: number): string {
-  let html = '';
-  let k = start;
-  while (k < end) {
-    const index = inline.owner[k]!;
-    let stop = k;
-    while (stop < end && inline.owner[stop] === index) stop++;
-    const run = inline.runs[index]!;
-    if (run.br) html += '<br>';
-    else {
-      const text = escapeHtml(inline.display.slice(k, stop));
-      const attributes = run.href ? ` data-href="${escapeHtml(run.href)}" title="${escapeHtml(run.href)}"` : '';
-      html += run.cls.length || attributes ? `<span class="${run.cls.join(' ')}"${attributes}>${text}</span>` : text;
+/**
+ * Finds each unit's text in the token's source content, in order, skipping link destinations and
+ * HTML tags. Markup inside a word (for example **Data**Harbor) is tolerated.
+ */
+function sourceOffsets(content: string, inline: Inline): ([number, number] | null)[] {
+  const skips = [...content.matchAll(/\]\([^)]*\)|<\/?[a-zA-Z][a-zA-Z0-9-]*(?:\s[^>]*)?\/?>/g)].map(m => [m.index!, m.index! + m[0].length] as const);
+  const inSkip = (at: number) => skips.find(([a, b]) => at >= a && at < b);
+  const find = (text: string, from: number): [number, number] | null => {
+    let at = from;
+    for (;;) {
+      const index = content.indexOf(text, at);
+      if (index < 0) break;
+      const skip = inSkip(index);
+      if (!skip) return [index, index + text.length];
+      at = skip[1];
     }
-    k = stop;
-  }
-  return html;
+    const pattern = new RegExp([...text].map(ch => ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[*_~`\\\\]*'), 'g');
+    pattern.lastIndex = from;
+    for (let match = pattern.exec(content); match; match = pattern.exec(content)) {
+      if (!inSkip(match.index)) return [match.index, match.index + match[0].length];
+    }
+    return null;
+  };
+  let cursor = 0;
+  return inline.units.map(unit => {
+    const found = find(inline.display.slice(unit.start, unit.end), cursor);
+    if (found) cursor = found[1];
+    return found;
+  });
+}
+
+interface Group { range: SourceRange | null; words: SpokenWord[] }
+
+function spanOf(words: SpokenWord[]): SourceRange | null {
+  const ranged = words.filter(word => word.range).map(word => word.range!);
+  if (!ranged.length) return null;
+  const first = ranged[0]!;
+  const last = ranged.at(-1)!;
+  return { line: first.line, character: first.character, endLine: last.endLine, endCharacter: last.endCharacter };
 }
 
 class Builder {
-  private readonly html: string[] = [];
   private readonly utterances: Utterance[] = [];
   private readonly blocks: ReaderBlock[] = [];
-  private counter = 0;
 
-  constructor(private readonly options: DocumentOptions) {}
+  constructor(private readonly options: DocumentOptions, private readonly source: Source) {}
 
-  private id(prefix: string): string { return `${prefix}${this.counter++}`; }
-  private line(map: [number, number] | null | undefined, fallback: number): [number, number] {
-    const [start, end] = map ?? [fallback, fallback + 1];
+  private lines(map: [number, number] | null | undefined): [number, number] {
+    const [start, end] = map ?? [0, 1];
     return [start + this.options.lineOffset, Math.max(start + 1, end) + this.options.lineOffset];
   }
 
   result(): ReaderDocument {
-    return { html: this.html.join(''), utterances: this.utterances, blocks: this.blocks };
+    return { utterances: this.utterances, blocks: this.blocks };
   }
 
-  private addBlock(kind: BlockKind, id: string, lines: [number, number], heading?: ReaderBlock['heading']): number {
-    this.blocks.push({ kind, id, line: lines[0], endLine: lines[1], first: -1, heading });
+  private addBlock(kind: BlockKind, map: [number, number] | null | undefined, heading?: ReaderBlock['heading']): number {
+    const [line, endLine] = this.lines(map);
+    this.blocks.push({ kind, line, endLine, first: -1, heading });
     return this.blocks.length - 1;
   }
 
-  private addUtterances(block: number, groups: { highlight: string[]; words: SpokenWord[] }[], pause: number, lines: [number, number]): void {
+  private add(block: number, groups: Group[], pause: number, finalPause: number): void {
     const spoken = groups.filter(group => group.words.some(word => word.text));
+    const info = this.blocks[block]!;
     spoken.forEach((group, index) => {
       const chunks = splitWords(group.words);
       chunks.forEach((chunk, k) => {
-        if (this.blocks[block]!.first < 0) this.blocks[block]!.first = this.utterances.length;
-        this.utterances.push({
-          block, highlight: group.highlight, words: chunk, line: lines[0], endLine: lines[1],
-          pauseAfter: k < chunks.length - 1 ? PAUSE.clause : PAUSE.sentence
-        });
+        if (info.first < 0) info.first = this.utterances.length;
+        const range = chunks.length > 1 ? this.source.extend(spanOf(chunk)) ?? group.range : group.range;
+        // Lines of the text itself (a sentence or a table row), so saved positions are precise.
+        const line = range ? range.line : info.line;
+        const endLine = range ? range.endLine + 1 : info.endLine;
+        this.utterances.push({ block, words: chunk, range, line, endLine, pauseAfter: k < chunks.length - 1 ? PAUSE.clause : pause });
       });
-      if (index === spoken.length - 1 && this.utterances.length) this.utterances.at(-1)!.pauseAfter = pause;
+      if (index === spoken.length - 1 && this.utterances.length) this.utterances.at(-1)!.pauseAfter = finalPause;
     });
   }
 
-  /** Renders inline content with sentence and word spans, and returns spoken sentences. */
-  private inline(inline: Inline, withSentences: boolean): { html: string; groups: { highlight: string[]; words: SpokenWord[] }[] } {
-    const ids = inline.units.map(() => this.id('w'));
-    const ranges = withSentences ? sentences(inline) : [{ start: 0, end: inline.display.length, units: inline.units.map((_, u) => u) }];
-    let html = '';
-    const groups: { highlight: string[]; words: SpokenWord[] }[] = [];
-    for (const range of ranges) {
-      const sentenceId = this.id('s');
-      let body = '';
-      let position = range.start;
-      for (const u of range.units) {
-        const unit = inline.units[u]!;
-        body += pieces(inline, position, unit.start) + `<span class="w" id="${ids[u]}">${pieces(inline, unit.start, unit.end)}</span>`;
-        position = unit.end;
-      }
-      body += pieces(inline, position, range.end);
-      html += withSentences ? `<span class="s" id="${sentenceId}">${body}</span>` : body;
-      // Units with nothing to say (for example emoji) stay visible; their gap folds into the previous separator.
-      const spoken = range.units.filter(u => inline.units[u]!.spoken);
+  /** Spoken words for inline content, grouped into sentences, with their source ranges. */
+  private groups(inline: Inline, content: string, locator: Locator, withSentences: boolean): Group[] {
+    const offsets = sourceOffsets(content, inline);
+    const rangeOf = (u: number): SourceRange | null => {
+      const found = offsets[u];
+      const start = found && locator.at(found[0]);
+      const end = found && locator.at(found[1]);
+      return start && end ? this.source.range(start, end) : null;
+    };
+    const spans = withSentences ? sentences(inline) : [{ start: 0, end: inline.display.length, units: inline.units.map((_, u) => u) }];
+    const groups: Group[] = [];
+    for (const span of spans) {
+      // Units with nothing to say (for example emoji) fold their gap into the previous separator.
+      const spoken = span.units.filter(u => inline.units[u]!.spoken);
       const words = spoken.flatMap((u, k): SpokenWord[] => {
         const next = spoken[k + 1];
         const unit = inline.units[u]!;
-        const gap = inline.display.slice(unit.end, next === undefined ? range.end : inline.units[next]!.start);
+        const gap = inline.display.slice(unit.end, next === undefined ? span.end : inline.units[next]!.start);
         const sep = normalizeSeparator(gap, next === undefined);
         const parts = unit.parts ?? [unit.spoken];
-        return parts.map((part, n) => ({ text: part, target: ids[u]!, sep: n === parts.length - 1 ? sep : ' ' }));
+        const range = rangeOf(u);
+        return parts.map((part, n) => ({ text: part, sep: n === parts.length - 1 ? sep : ' ', range }));
       });
-      if (words.length) groups.push({ highlight: [sentenceId], words });
+      if (words.length) groups.push({ range: this.source.extend(spanOf(words)), words });
     }
-    if (!ranges.length) html = pieces(inline, 0, inline.display.length);
-    return { html, groups };
+    return groups;
   }
 
-  textBlock(kind: BlockKind, inlineToken: Token, tag: string, extraClass: string, map: Token['map'], prefix: SpokenWord[], pause: number, level?: number): void {
+  textBlock(kind: BlockKind, token: Token, inlineToken: Token, prefix: SpokenWord[], pause: number, level?: number): void {
     const inline = tokenize(collectRuns(inlineToken.children ?? []));
-    const id = this.id('b');
-    const lines = this.line(map, 0);
     const heading = level ? { level, text: inline.display.replace(/\s+/g, ' ').trim() } : undefined;
-    const block = this.addBlock(kind, id, lines, heading);
-    const { html, groups } = this.inline(inline, true);
-    this.html.push(`<${tag} class="blk${extraClass}" id="${id}">${html}</${tag}>`);
+    const block = this.addBlock(kind, token.map, heading);
+    const locator = locateParagraph(inlineToken.content, token.map?.[0] ?? 0, this.source);
+    const groups = this.groups(inline, inlineToken.content, locator, true);
     if (prefix.length && groups.length) groups[0]!.words.unshift(...prefix);
-    else if (prefix.length) groups.push({ highlight: [id], words: [...prefix.slice(0, -1), { ...prefix.at(-1)!, sep: '.' }] });
-    this.addUtterances(block, groups, pause, lines);
+    else if (prefix.length) groups.push({ range: null, words: [...prefix.slice(0, -1), { ...prefix.at(-1)!, sep: '.' }] });
+    this.add(block, groups, PAUSE.sentence, pause);
   }
 
   table(tokens: Token[], start: number): number {
-    interface Cell { header: boolean; align: string; inline: Inline; id: string; html: string; words: SpokenWord[] }
-    const rows: { id: string; map: Token['map']; cells: Cell[] }[] = [];
+    interface Cell { header: boolean; inline: Inline; range: SourceRange | null; words: SpokenWord[] }
+    const rows: { map: Token['map']; cells: Cell[] }[] = [];
+    let cursor = 0;
     let i = start + 1;
     for (; i < tokens.length && tokens[i]!.type !== 'table_close'; i++) {
       const token = tokens[i]!;
-      if (token.type === 'tr_open') rows.push({ id: this.id('r'), map: token.map, cells: [] });
+      if (token.type === 'tr_open') {
+        rows.push({ map: token.map, cells: [] });
+        cursor = 0;
+      }
       if (token.type === 'th_open' || token.type === 'td_open') {
-        const inline = tokenize(collectRuns(tokens[i + 1]?.children ?? []));
-        const id = this.id('c');
-        const rendered = this.inline(inline, false);
-        const align = /text-align:(left|center|right)/.exec(token.attrGet('style') ?? '')?.[1] ?? '';
-        rows.at(-1)?.cells.push({ header: token.type === 'th_open', align, inline, id, html: rendered.html, words: rendered.groups[0]?.words ?? [] });
+        const inlineToken = tokens[i + 1]!;
+        const content = inlineToken.content;
+        const line = rows.at(-1)?.map?.[0] ?? 0;
+        const lineText = this.source.lines[line] ?? '';
+        // markdown-it unescapes "\|" in cells, so look for the escaped form when the plain one is missing.
+        let raw = content;
+        let column = content ? lineText.indexOf(content, cursor) : -1;
+        if (column < 0 && content.includes('|')) {
+          raw = content.replace(/\|/g, '\\|');
+          column = lineText.indexOf(raw, cursor);
+        }
+        if (column >= 0) cursor = column + raw.length;
+        const inline = tokenize(collectRuns(inlineToken.children ?? []));
+        const words = this.groups(inline, raw, locateCell(line, column), false)[0]?.words ?? [];
+        const range = column >= 0 && raw ? this.source.range({ line, character: column }, { line, character: column + raw.length }) : null;
+        rows.at(-1)?.cells.push({ header: token.type === 'th_open', inline, range, words });
       }
     }
-    const table = tokens[start]!;
-    const id = this.id('b');
-    const lines = this.line(table.map, 0);
-    const block = this.addBlock('table', id, lines);
+    const tableToken = tokens[start]!;
+    const block = this.addBlock('table', tableToken.map);
     const header = rows[0]?.cells.every(cell => cell.header) ? rows.shift()! : undefined;
-    const row = (r: { id: string; cells: Cell[] }, tag: string) => `<tr id="${r.id}">${r.cells.map(cell =>
-      `<${tag} id="${cell.id}"${cell.align ? ` class="al-${cell.align}"` : ''}>${cell.html}</${tag}>`).join('')}</tr>`;
-    this.html.push(`<div class="table-wrap"><table class="blk" id="${id}">${header ? `<thead>${row(header, 'th')}</thead>` : ''}<tbody>${rows.map(r => row(r, 'td')).join('')}</tbody></table></div>`);
-
     const columns = Math.max(header?.cells.length ?? 0, ...rows.map(r => r.cells.length));
     const label = (c: number) => header?.cells[c]?.inline.display.replace(/\s+/g, ' ').trim() || `Column ${c + 1}`;
-    const cue = (text: string, target: string | null, sep: string): SpokenWord[] => {
+    const cue = (text: string, range: SourceRange | null, sep: string): SpokenWord[] => {
       const parts = text.split(/\s+/).filter(Boolean);
       return parts.map((part, k) => {
         const word = /^(.*?)([.,;:!?]*)$/.exec(part)!;
         const own = word[2] ?? '';
-        const last = k === parts.length - 1;
         // A cue's own punctuation ("rows.") wins unless the caller supplies punctuation of its own.
         const finalSep = own && !/[.,;:!?]/.test(sep) ? `${own}${sep.endsWith(' ') ? ' ' : ''}` : sep;
-        return { text: spokenForm(word[1] || part), target, sep: last ? finalSep : own ? `${own} ` : ' ' };
+        return { text: spokenForm(word[1] || part), range, sep: k === parts.length - 1 ? finalSep : own ? `${own} ` : ' ' };
       });
     };
-    const value = (cell: Cell | undefined, sep: string, fallbackTarget: string | null): SpokenWord[] => {
+    const value = (cell: Cell | undefined, sep: string): SpokenWord[] => {
       const words = cell?.words.filter(word => word.text).map(word => ({ ...word })) ?? [];
-      if (!words.length) return cue('empty', cell?.id ?? fallbackTarget, sep);
+      if (!words.length) return cue('empty', cell?.range ?? null, sep);
       words.at(-1)!.sep = sep;
       return words;
     };
+    const rowRange = (map: Token['map']) => (map ? this.source.lineRange(map[0], map[0] + 1) : null);
     const intro: SpokenWord[] = cue(`Table with ${rows.length} ${rows.length === 1 ? 'row' : 'rows'}.`, null, ' ');
     if (columns) {
       intro.push(...cue('Columns:', null, ' '));
-      for (let c = 0; c < columns; c++) intro.push(...cue(label(c), header?.cells[c]?.id ?? null, c === columns - 1 ? '.' : ', '));
+      for (let c = 0; c < columns; c++) intro.push(...cue(label(c), header?.cells[c]?.range ?? null, c === columns - 1 ? '.' : ', '));
     }
     intro.at(-1)!.sep = '.';
-    const groups: { highlight: string[]; words: SpokenWord[]; lines: [number, number] }[] = [
-      { highlight: [header?.id ?? id], words: intro, lines: this.line(header?.map ?? table.map, 0) }
-    ];
+    const groups: Group[] = [{ range: rowRange(header?.map ?? tableToken.map), words: intro }];
     if (this.options.tableMode === 'columns') {
       for (let c = 0; c < columns; c++) {
-        const words = cue(`Column ${label(c)}`, header?.cells[c]?.id ?? null, '. ');
+        const words = cue(`Column ${label(c)}`, header?.cells[c]?.range ?? null, '. ');
         rows.forEach((r, index) => {
-          if (c === 0) words.push(...cue(`Row ${index + 1}:`, r.cells[0]?.id ?? r.id, ' '));
-          else words.push(...value(r.cells[0], ': ', r.id));
-          words.push(...value(r.cells[c], '. ', r.id));
+          if (c === 0) words.push(...cue(`Row ${index + 1}:`, null, ' '));
+          else words.push(...value(r.cells[0], ': '));
+          words.push(...value(r.cells[c], '. '));
         });
         words.at(-1)!.sep = '.';
-        groups.push({ highlight: [header?.cells[c]?.id, ...rows.map(r => r.cells[c]?.id)].filter((x): x is string => !!x), words, lines: lines });
+        groups.push({ range: spanOf(words), words });
       }
     } else {
       for (const r of rows) {
-        const words = value(r.cells[0], '. ', r.id);
+        const words = value(r.cells[0], '. ');
         for (let c = 1; c < columns; c++) {
-          words.push(...cue(label(c), header?.cells[c]?.id ?? null, ': '));
-          words.push(...value(r.cells[c], '. ', r.id));
+          words.push(...cue(label(c), header?.cells[c]?.range ?? null, ': '));
+          words.push(...value(r.cells[c], '. '));
         }
         words.at(-1)!.sep = '.';
-        groups.push({ highlight: [r.id], words, lines: this.line(r.map, lines[0]) });
+        groups.push({ range: rowRange(r.map), words });
       }
     }
-    groups.forEach((group, index) => {
-      const chunks = splitWords(group.words);
-      chunks.forEach((chunk, k) => {
-        if (this.blocks[block]!.first < 0) this.blocks[block]!.first = this.utterances.length;
-        this.utterances.push({
-          block, highlight: group.highlight, words: chunk, line: group.lines[0], endLine: group.lines[1],
-          pauseAfter: k < chunks.length - 1 ? PAUSE.clause : PAUSE.row
-        });
-      });
-      if (index === groups.length - 1) this.utterances.at(-1)!.pauseAfter = PAUSE.paragraph;
-    });
+    this.add(block, groups, PAUSE.row, PAUSE.paragraph);
     return i;
   }
 
   code(token: Token): void {
-    const id = this.id('b');
-    const lines = this.line(token.map, 0);
-    const block = this.addBlock('code', id, lines);
+    const block = this.addBlock('code', token.map);
     const source = token.content.replace(/\n$/, '');
     const language = token.info.trim().split(/\s+/)[0]?.toLowerCase() ?? '';
     const count = source ? source.split('\n').length : 0;
+    const [first, end] = token.map ?? [0, 1];
+    if (this.options.codeBlocks === 'skip') return;
     if (this.options.codeBlocks === 'read') {
-      const lineIds = source.split('\n').map(() => this.id('l'));
-      this.html.push(`<pre class="blk code-block" id="${id}"><code>${source.split('\n').map((text, k) =>
-        `<span class="line" id="${lineIds[k]}">${escapeHtml(text)}</span>`).join('\n')}</code></pre>`);
-      const groups = source.split('\n').flatMap((text, k) => {
-        const words = text.trim().split(/\s+/).filter(Boolean).map((part, n, all) => ({ text: part, target: lineIds[k]!, sep: n === all.length - 1 ? '.' : ' ' }));
-        return words.length ? [{ highlight: [lineIds[k]!], words }] : [];
+      // Fenced code starts one line after the fence; indented code starts on its first line.
+      const offset = token.type === 'fence' ? 1 : 0;
+      const groups = source.split('\n').flatMap((text, k): Group[] => {
+        const range = this.source.lineRange(first + offset + k, first + offset + k + 1);
+        const words = text.trim().split(/\s+/).filter(Boolean).map((part, n, all) => ({ text: part, range, sep: n === all.length - 1 ? '.' : ' ' }));
+        return words.length ? [{ range, words }] : [];
       });
-      this.addUtterances(block, groups, PAUSE.code, lines);
+      this.add(block, groups, PAUSE.sentence, PAUSE.code);
       return;
     }
-    this.html.push(`<pre class="blk code-block" id="${id}"><code>${escapeHtml(source)}</code></pre>`);
-    if (this.options.codeBlocks === 'skip') return;
     const kind = language === 'mermaid' ? 'Diagram' : 'Code block';
     const name = language === 'mermaid' ? '' : LANGUAGES[language] ?? (language ? language : '');
     const words = `${kind}${name ? `, ${name}` : ''}, ${count} ${count === 1 ? 'line' : 'lines'}`.split(' ')
-      .map((part, k, all) => ({ text: part.replace(/,$/, ''), target: null, sep: k === all.length - 1 ? '.' : part.endsWith(',') ? ', ' : ' ' }));
-    this.addUtterances(block, [{ highlight: [id], words }], PAUSE.code, lines);
+      .map((part, k, all) => ({ text: part.replace(/,$/, ''), range: null, sep: k === all.length - 1 ? '.' : part.endsWith(',') ? ', ' : ' ' }));
+    this.add(block, [{ range: this.source.lineRange(first, end), words }], PAUSE.sentence, PAUSE.code);
   }
 
   htmlBlock(token: Token): void {
-    if (/^\s*<!--/.test(token.content)) return;
-    const id = this.id('b');
-    this.addBlock('html', id, this.line(token.map, 0));
-    this.html.push(`<div class="blk html-note" id="${id}" title="Raw HTML is not rendered or read.">HTML content not shown</div>`);
+    if (!/^\s*<!--/.test(token.content)) this.addBlock('html', token.map);
   }
 
   rule(): void {
-    this.html.push('<hr>');
     const last = this.utterances.at(-1);
     if (last) last.pauseAfter = Math.max(last.pauseAfter, PAUSE.rule);
   }
-
-  raw(html: string): void { this.html.push(html); }
-  nextId(prefix: string): string { return this.id(prefix); }
 }
 
 function splitWords(words: SpokenWord[]): SpokenWord[][] {
@@ -490,7 +537,7 @@ function splitWords(words: SpokenWord[]): SpokenWord[][] {
 }
 
 /** Splits free text into spoken words whose punctuation becomes separators. */
-export function textWords(text: string, target: string | null): SpokenWord[] {
+export function textWords(text: string): SpokenWord[] {
   const parts = text.replace(/[*_`#>|]/g, ' ').split(/\s+/).filter(Boolean);
   const words: SpokenWord[] = [];
   for (const part of parts) {
@@ -500,26 +547,26 @@ export function textWords(text: string, target: string | null): SpokenWord[] {
       if (words.length) words.at(-1)!.sep = normalizeSeparator(words.at(-1)!.sep + part, false);
       continue;
     }
-    words.push({ text: word, target, sep: normalizeSeparator(match[2] ?? '', false) });
+    words.push({ text: word, range: null, sep: normalizeSeparator(match[2] ?? '', false) });
   }
   if (words.length) words.at(-1)!.sep = normalizeSeparator(words.at(-1)!.sep, true);
   return words;
 }
 
-function applyOverrides(document: ReaderDocument, overrides: ReadonlyMap<number, string>): void {
+function applyOverrides(document: ReaderDocument, overrides: ReadonlyMap<number, string>, source: Source, lineOffset: number): void {
   for (const [block, text] of [...overrides].sort((a, b) => a[0] - b[0])) {
     const info = document.blocks[block];
     if (!info) continue;
-    const words = textWords(text, info.id);
+    const words = textWords(text);
     if (!words.length) continue;
-    const sentences: SpokenWord[][] = [[]];
+    const range = source.lineRange(info.line - lineOffset, info.endLine - lineOffset);
+    const sentencesOf: SpokenWord[][] = [[]];
     for (const word of words) {
-      sentences.at(-1)!.push(word);
-      if (/[.!?]/.test(word.sep)) sentences.push([]);
+      sentencesOf.at(-1)!.push(word);
+      if (/[.!?]/.test(word.sep)) sentencesOf.push([]);
     }
-    const replacement = sentences.filter(list => list.length).flatMap(list => splitWords(list)).map((chunk, k, all): Utterance => ({
-      block, highlight: [info.id], words: chunk, pauseAfter: k === all.length - 1 ? PAUSE.paragraph : PAUSE.sentence,
-      line: info.line, endLine: info.endLine
+    const replacement = sentencesOf.filter(list => list.length).flatMap(list => splitWords(list)).map((chunk, k, all): Utterance => ({
+      block, words: chunk, range, pauseAfter: k === all.length - 1 ? PAUSE.paragraph : PAUSE.sentence, line: info.line, endLine: info.endLine
     }));
     let at = document.utterances.findIndex(u => u.block >= block);
     if (at < 0) at = document.utterances.length;
@@ -529,25 +576,25 @@ function applyOverrides(document: ReaderDocument, overrides: ReadonlyMap<number,
   document.blocks.forEach((info, index) => { info.first = document.utterances.findIndex(u => u.block === index); });
 }
 
-/** Builds the rendered reader HTML and the spoken utterances for a Markdown document. */
+/** Builds the spoken utterances for a Markdown document, each mapped to its source text. */
 export function buildDocument(markdown: string, options: Partial<DocumentOptions> = {}): ReaderDocument {
   const settings = { ...defaults, ...options };
-  const tokens = parser.parse(stripFrontMatter(markdown), {});
-  const builder = new Builder(settings);
+  const text = stripFrontMatter(markdown);
+  const source = new Source(text, settings.lineOffset, settings.characterOffset);
+  const tokens = parser.parse(text, {});
+  const builder = new Builder(settings, source);
   const lists: { ordered: boolean; next: number }[] = [];
   const items: { prefix: SpokenWord[]; first: boolean }[] = [];
-  const quotes: { alert?: string; titleId?: string; first: boolean }[] = [];
+  const quotes: { alert?: string; first: boolean }[] = [];
 
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i]!;
     switch (token.type) {
-      case 'heading_open': {
-        builder.textBlock('heading', tokens[i + 1]!, token.tag, '', token.map, [], PAUSE.heading, Number(token.tag.slice(1)));
+      case 'heading_open':
+        builder.textBlock('heading', token, tokens[i + 1]!, [], PAUSE.heading, Number(token.tag.slice(1)));
         i += 2;
         break;
-      }
       case 'paragraph_open': {
-        const inline = tokens[i + 1]!;
         const item = items.at(-1);
         const quote = quotes.at(-1);
         const prefix: SpokenWord[] = [];
@@ -555,9 +602,9 @@ export function buildDocument(markdown: string, options: Partial<DocumentOptions
         let pause = PAUSE.paragraph;
         if (quote?.first) {
           quote.first = false;
-          prefix.push(quote.alert ? { text: `${quote.alert}:`, target: quote.titleId ?? null, sep: ' ' } : { text: 'Quote:', target: null, sep: ' ' });
+          prefix.push({ text: quote.alert ? `${quote.alert}:` : 'Quote:', range: null, sep: ' ' });
         }
-        if (item && token.map && items.length && lists.length) {
+        if (item) {
           kind = 'item';
           pause = PAUSE.item;
           if (item.first) {
@@ -565,60 +612,50 @@ export function buildDocument(markdown: string, options: Partial<DocumentOptions
             item.first = false;
           }
         }
-        builder.textBlock(kind, inline, token.hidden ? 'div' : 'p', token.hidden ? ' tight' : '', token.map, prefix, pause);
+        builder.textBlock(kind, token, tokens[i + 1]!, prefix, pause);
         i += 2;
         break;
       }
       case 'bullet_list_open':
         lists.push({ ordered: false, next: 1 });
-        builder.raw('<ul>');
         break;
-      case 'ordered_list_open': {
-        const start = Number(token.attrGet('start') ?? 1);
-        lists.push({ ordered: true, next: start });
-        builder.raw(start === 1 ? '<ol>' : `<ol start="${start}">`);
+      case 'ordered_list_open':
+        lists.push({ ordered: true, next: Number(token.attrGet('start') ?? 1) });
         break;
-      }
-      case 'bullet_list_close': lists.pop(); builder.raw('</ul>'); break;
-      case 'ordered_list_close': lists.pop(); builder.raw('</ol>'); break;
+      case 'bullet_list_close': case 'ordered_list_close':
+        lists.pop();
+        break;
       case 'list_item_open': {
         const list = lists.at(-1);
         const prefix: SpokenWord[] = [];
-        if (list?.ordered) prefix.push({ text: `${list.next++}.`, target: null, sep: ' ' });
+        if (list?.ordered) prefix.push({ text: `${list.next++}.`, range: null, sep: ' ' });
         const inline = tokens[i + 1]?.type === 'paragraph_open' ? tokens[i + 2] : undefined;
         const first = inline?.children?.[0];
         const task = first?.type === 'text' ? /^\[([ xX])\]\s+/.exec(first.content) : null;
         if (task && first) {
           first.content = first.content.slice(task[0].length);
-          const done = task[1] !== ' ';
-          const checkId = builder.nextId('k');
-          builder.raw(`<li class="task${done ? ' done' : ''}"><span class="check" id="${checkId}" aria-hidden="true">${done ? '☑' : '☐'}</span>`);
-          prefix.push({ text: done ? 'Completed:' : 'Not completed:', target: checkId, sep: ' ' });
-        } else {
-          builder.raw('<li>');
+          prefix.push({ text: task[1] !== ' ' ? 'Completed:' : 'Not completed:', range: null, sep: ' ' });
         }
         items.push({ prefix, first: true });
         break;
       }
-      case 'list_item_close': items.pop(); builder.raw('</li>'); break;
+      case 'list_item_close':
+        items.pop();
+        break;
       case 'blockquote_open': {
         const inline = tokens[i + 1]?.type === 'paragraph_open' ? tokens[i + 2] : undefined;
         const first = inline?.children?.[0];
         const alert = first?.type === 'text' ? /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*$/i.exec(first.content) : null;
         if (alert && inline?.children) {
-          const name = ALERTS[alert[1]!.toUpperCase()]!;
-          const titleId = builder.nextId('t');
           inline.children.splice(0, inline.children[1]?.type === 'softbreak' ? 2 : 1);
-          builder.raw(`<div class="callout callout-${name.toLowerCase()}"><div class="callout-title" id="${titleId}">${name}</div>`);
-          quotes.push({ alert: name, titleId, first: true });
+          quotes.push({ alert: ALERTS[alert[1]!.toUpperCase()]!, first: true });
         } else {
-          builder.raw('<blockquote>');
           quotes.push({ first: true });
         }
         break;
       }
       case 'blockquote_close':
-        builder.raw(quotes.pop()?.alert ? '</div>' : '</blockquote>');
+        quotes.pop();
         break;
       case 'table_open': i = builder.table(tokens, i); break;
       case 'fence': case 'code_block': builder.code(token); break;
@@ -627,6 +664,6 @@ export function buildDocument(markdown: string, options: Partial<DocumentOptions
     }
   }
   const document = builder.result();
-  if (settings.overrides?.size) applyOverrides(document, settings.overrides);
+  if (settings.overrides?.size) applyOverrides(document, settings.overrides, source, settings.lineOffset);
   return document;
 }

@@ -6,6 +6,7 @@ import { NaturalEngine } from './engine/client';
 import { SystemEngine } from './engine/system';
 import { NativeSpeech, type Voice } from './speech';
 import { ModelStore, DEFAULT_VOICE, voiceInfo, type Quality } from './model';
+import { SPEEDS } from './markup';
 
 export interface Settings {
   engine: 'natural' | 'system';
@@ -27,17 +28,16 @@ export interface Position { line: number; index: number; total: number; at: numb
 
 const IDLE_SHUTDOWN_MS = 3 * 60 * 1000;
 
-/** Shared, long-lived state used by every reader panel. */
+/** The offered speed closest to a configured value (older versions allowed any value up to 3). */
+export function nearestSpeed(value: number): number {
+  const wanted = Number.isFinite(value) ? value : 1;
+  return SPEEDS.reduce<number>((best, speed) => (Math.abs(speed - wanted) < Math.abs(best - wanted) ? speed : best), 1);
+}
+
+/** Shared, long-lived state: settings, the model store, speech engines and saved positions. */
 export class Services implements vscode.Disposable {
   readonly output = vscode.window.createOutputChannel('Clear Markdown Reader');
   readonly store: ModelStore;
-  readonly status = vscode.window.createStatusBarItem('clearMarkdown.player', vscode.StatusBarAlignment.Right, 100);
-  readonly decoration = vscode.window.createTextEditorDecorationType({
-    isWholeLine: true,
-    backgroundColor: new vscode.ThemeColor('clearMarkdown.readingBackground'),
-    overviewRulerColor: new vscode.ThemeColor('clearMarkdown.readingBackground'),
-    overviewRulerLane: vscode.OverviewRulerLane.Center
-  });
   private natural: { engine: NaturalEngine; key: string } | undefined;
   private system: Promise<{ engine: SystemEngine; voices: Voice[]; directory: string }> | undefined;
   private idle: NodeJS.Timeout | undefined;
@@ -45,8 +45,6 @@ export class Services implements vscode.Disposable {
 
   constructor(readonly context: vscode.ExtensionContext) {
     this.store = new ModelStore(path.join(context.globalStorageUri.fsPath, 'kokoro-82m-v1.0'));
-    this.status.name = 'Clear Markdown Reader';
-    this.status.command = 'clearMarkdown.togglePlay';
   }
 
   settings(): Settings {
@@ -59,7 +57,7 @@ export class Services implements vscode.Disposable {
       naturalVoice: voiceInfo(naturalVoice) ? naturalVoice : DEFAULT_VOICE,
       // "voice" is the 0.1 setting name for system voices.
       systemVoice: config.get<string>('systemVoice', '') || config.get<string>('voice', ''),
-      rate: clamp(config.get<number>('rate', 1), 0.5, 3),
+      rate: nearestSpeed(config.get<number>('rate', 1)),
       tableMode: config.get('tableMode') === 'columns' ? 'columns' : 'rows',
       codeBlocks: (['announce', 'read', 'skip'] as const).find(mode => mode === config.get('codeBlocks')) ?? 'announce',
       followInEditor: config.get<boolean>('followInEditor', true),
@@ -107,7 +105,7 @@ export class Services implements vscode.Disposable {
     this.natural = undefined;
   }
 
-  /** Readers call acquire/release so the natural engine stops when nothing has used it for a while. */
+  /** The reader calls acquire/release so the natural engine stops when nothing has used it for a while. */
   acquire(): void {
     this.users++;
     clearTimeout(this.idle);
@@ -139,8 +137,6 @@ export class Services implements vscode.Disposable {
     clearTimeout(this.idle);
     this.natural?.engine.dispose();
     void this.system?.then(system => rm(system.directory, { recursive: true, force: true })).catch(() => undefined);
-    this.status.dispose();
-    this.decoration.dispose();
     this.output.dispose();
   }
 }

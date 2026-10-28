@@ -92,3 +92,25 @@ test('disposing stops delivery', async () => {
   await settle();
   assert.deepEqual(delivered, []);
 });
+
+test('batches stay small while little audio is buffered and grow once playback is safely ahead', async () => {
+  const long = buildDocument(Array.from({ length: 12 }, (_, i) => `Sentence number ${i + 1} is a reasonably long sentence for testing batches.`).join(' '));
+  const sizes = (calls: number[][]) => calls.map(call => call.length);
+  const run = async (ahead: number) => {
+    const engine = new FakeEngine();
+    const logs: string[] = [];
+    const instance = new Scheduler({
+      engine, utterances: long.utterances, voice: 'af_heart', dictionary: [], deliver: () => undefined, fail: () => undefined, log: message => logs.push(message)
+    });
+    instance.need(long.utterances.map((_, i) => i).slice(0, 4), ahead, 2);
+    await settle();
+    instance.dispose();
+    return { calls: engine.calls, logs };
+  };
+  const starved = await run(0);
+  const chars = spokenLength(long.utterances[0]!);
+  assert.ok(chars > 40 && chars * 2 > 90, 'each sentence is long enough to stand alone');
+  assert.deepEqual(sizes(starved.calls), [1, 1, 1, 1], 'nothing buffered: one sentence at a time');
+  const comfortable = await run(60);
+  assert.ok(sizes(comfortable.calls)[0]! > 1, 'a minute buffered: full batches for better prosody');
+});
