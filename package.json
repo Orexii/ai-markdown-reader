@@ -1,0 +1,92 @@
+{
+  "name": "clear-markdown-reader",
+  "displayName": "Clear Markdown Reader",
+  "description": "Read Markdown aloud with meaningful tables, flowing lists, local voices, and optional Copilot narration.",
+  "version": "0.1.0",
+  "publisher": "orexii",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Orexii/clear-markdown-reader.git"
+  },
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": ["Other"],
+  "keywords": ["markdown", "accessibility", "tts", "read aloud", "tables"],
+  "main": "./dist/extension.js",
+  "extensionKind": ["ui"],
+  "capabilities": {
+    "untrustedWorkspaces": { "supported": true },
+    "virtualWorkspaces": { "supported": true }
+  },
+  "contributes": {
+    "commands": [
+      { "command": "clearMarkdown.read", "title": "Clear Markdown: Read Aloud", "icon": "$(unmute)" },
+      { "command": "clearMarkdown.readSelection", "title": "Clear Markdown: Read Selection Aloud" }
+    ],
+    "menus": {
+      "editor/title": [
+        { "command": "clearMarkdown.read", "when": "editorLangId == markdown", "group": "navigation" }
+      ],
+      "editor/context": [
+        { "command": "clearMarkdown.readSelection", "when": "editorLangId == markdown && editorHasSelection", "group": "navigation" }
+      ]
+    },
+    "configuration": {
+      "title": "Clear Markdown Reader",
+      "properties": {
+        "clearMarkdown.tableMode": {
+          "type": "string",
+          "enum": ["rows", "columns"],
+          "default": "rows",
+          "description": "Read each table row with its column labels, or read one column at a time. Applied when opening a reader."
+        },
+        "clearMarkdown.codeBlocks": {
+          "type": "string",
+          "enum": ["announce", "read"],
+          "default": "announce",
+          "description": "Announce fenced code blocks and their line counts, or read their contents."
+        },
+        "clearMarkdown.rate": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0.5,
+          "maximum": 2,
+          "description": "Initial playback speed. Can also be adjusted in the reader."
+        },
+        "clearMarkdown.voice": {
+          "type": "string",
+          "default": "",
+          "description": "Preferred installed system voice. Use the reader's voice picker to save a choice."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run check && npm run build",
+    "build": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=dist/extension.js",
+    "check": "tsc --noEmit",
+    "test": "tsc && node --test out/test/*.test.js",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "markdown-it": "^14.1.0"
+  },
+  "overrides": {
+    "@vscode/vsce": {
+      "@azure/identity": "4.13.0",
+      "uuid": "^11.1.1"
+    }
+  },
+  "devDependencies": {
+    "@types/jsdom": "^21.1.7",
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.100.0",
+    "@vscode/vsce": "^3.6.0",
+    "esbuild": "^0.25.0",
+    "jsdom": "^26.0.0",
+    "typescript": "^5.8.0"
+  }
+}

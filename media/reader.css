@@ -1,0 +1,24 @@
+:root { color-scheme: light dark; }
+body { max-width: 1000px; margin: 0 auto; padding: 20px; font-family: var(--vscode-font-family, sans-serif); color: var(--vscode-foreground); background: var(--vscode-editor-background); line-height: 1.6; }
+h1 { margin-bottom: 0; font-size: 1.6rem; }
+header p, .hint, .ai-controls p { color: var(--vscode-descriptionForeground); }
+.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; position: sticky; top: 0; z-index: 1; background: var(--vscode-editor-background); padding: 12px 0; border-bottom: 1px solid var(--vscode-panel-border); }
+button, select { font: inherit; color: var(--vscode-button-foreground); background: var(--vscode-button-background); border: 1px solid transparent; border-radius: 3px; padding: 5px 10px; cursor: pointer; }
+button:hover { background: var(--vscode-button-hoverBackground); }
+button:disabled { opacity: 0.5; cursor: default; }
+button:focus-visible, select:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
+select { max-width: 250px; background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground); border-color: var(--vscode-dropdown-border); }
+label { display: flex; align-items: center; gap: 6px; }
+#status { font-weight: 600; }
+#error { border-left: 3px solid var(--vscode-errorForeground); color: var(--vscode-errorForeground); padding: 8px 12px; }
+.ai-controls { margin: 20px 0; padding: 12px; border: 1px solid var(--vscode-panel-border); }
+.ai-controls button { margin: 3px; }
+.comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+#proposal { border: 1px solid var(--vscode-focusBorder); padding: 16px; }
+#passages { padding-left: 26px; }
+#passages li { padding: 8px; margin: 4px 0; border-left: 3px solid transparent; }
+#passages li.current { background: var(--vscode-editor-inactiveSelectionBackground); border-color: var(--vscode-focusBorder); }
+button.passage { text-align: left; background: transparent; color: inherit; width: 100%; line-height: 1.6; padding: 2px; white-space: normal; overflow-wrap: anywhere; }
+.source { font-size: 0.8em; margin-top: 5px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
+[hidden] { display: none !important; }
+@media (max-width: 650px) { .comparison { grid-template-columns: 1fr; } body { padding: 12px; } }
