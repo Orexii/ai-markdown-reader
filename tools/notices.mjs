@@ -39,6 +39,11 @@ on request from https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX-times
 of https://huggingface.co/hexgrad/Kokoro-82M) and are licensed under the Apache License 2.0
 (licenses/Apache-2.0.txt).
 
+**misaki.** lexicon/us.json and lexicon/gb.json are the English pronunciation lexicons of misaki
+(https://github.com/hexgrad/misaki, commit ${readFileSync(path.join(root, 'lexicon', 'MISAKI_COMMIT'), 'utf8').trim()}), Copyright hexgrad, licensed under the
+Apache License 2.0 (licenses/Apache-2.0.txt). src/engine/lexicon.ts and the toMisaki mapping in src/engine/kokoro.ts
+are ports of misaki's word lookup and eSpeak fallback rules.
+
 **kokoro.js.** The eSpeak phoneme corrections in src/engine/kokoro.ts and the number and currency rules in
 src/engine/pronounce.ts follow the approach of kokoro.js (https://github.com/hexgrad/kokoro, Apache-2.0).
 

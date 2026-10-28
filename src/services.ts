@@ -85,7 +85,7 @@ export class Services implements vscode.Disposable {
     if (this.natural?.key !== key) {
       this.natural?.engine.dispose();
       const engine = new NaturalEngine(this.context.asAbsolutePath('dist/engine.js'), this.store.modelPath(quality),
-        this.store.voicesDir, threads, message => this.output.appendLine(message));
+        this.store.voicesDir, this.context.asAbsolutePath('lexicon'), threads, message => this.output.appendLine(message));
       this.natural = { engine, key };
     }
     return this.natural.engine;

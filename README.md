@@ -86,6 +86,9 @@ also a **Clear Markdown** command in the Command Palette, so you can assign your
 
 The natural voice is [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M), an open (Apache-2.0)
 neural text-to-speech model, run with ONNX Runtime in a separate process so VS Code stays responsive.
+Words are converted to the exact phonemes Kokoro was trained with, using the curated lexicons of
+[misaki](https://github.com/hexgrad/misaki), Kokoro's own pronunciation frontend; eSpeak NG covers
+words the lexicon does not know.
 **Heart** (American English, the model authors' highest-graded voice) is the default; choose among 28
 American and British voices in the reader. Other voices download on demand (0.5 MB each).
 

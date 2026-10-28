@@ -31,7 +31,7 @@ execFileSync(process.execPath, [path.join(root, 'node_modules', 'typescript', 'b
 const temp = await hostTemp();
 try {
   const extension = path.join(temp, 'extension');
-  for (const item of ['package.json', 'dist', 'media', 'scripts', 'bin', 'out', 'examples']) await cp(path.join(root, item), path.join(extension, item), { recursive: true });
+  for (const item of ['package.json', 'dist', 'media', 'scripts', 'bin', 'out', 'examples', 'lexicon']) await cp(path.join(root, item), path.join(extension, item), { recursive: true });
   const storage = path.join(temp, 'profile', 'User', 'globalStorage', 'orexii.clear-markdown-reader', 'kokoro-82m-v1.0');
   await mkdir(path.join(storage, 'voices'), { recursive: true });
   await cp(path.join(args.model, 'onnx', modelFile), path.join(storage, modelFile));

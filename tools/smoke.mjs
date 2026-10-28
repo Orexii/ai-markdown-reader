@@ -16,7 +16,7 @@ const call = message => new Promise((resolve, reject) => {
   child.send({ id: 1, ...message });
 });
 const started = Date.now();
-await call({ type: 'load', modelPath: model, voicesDir: path.join(directory, 'voices'), threads: 2 });
+await call({ type: 'load', modelPath: model, voicesDir: path.join(directory, 'voices'), lexiconDir: path.join(root, 'lexicon'), threads: 2 });
 const reply = await call({ type: 'synthesize', request: { voice: 'af_heart', utterances: [
   { words: [{ text: 'Platform', sep: ' ' }, { text: 'check', sep: '.' }], pause: 0.3 },
   { words: [{ text: 'The', sep: ' ' }, { text: 'ANF', sep: ' ' }, { text: 'reader', sep: ' ' }, { text: 'works', sep: '.' }], pause: 0.5 }

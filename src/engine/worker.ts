@@ -8,6 +8,7 @@ interface Message {
   type: 'load' | 'synthesize' | 'shutdown';
   modelPath?: string;
   voicesDir?: string;
+  lexiconDir?: string;
   threads?: number;
   request?: SynthesisRequest;
 }
@@ -26,7 +27,7 @@ async function handle(message: Message): Promise<void> {
       process.exit(0);
     } else if (message.type === 'load') {
       model = await KokoroModel.load({
-        ort: ort as never, modelPath: message.modelPath!, voicesDir: message.voicesDir!, threads: message.threads ?? 4, phonemize
+        ort: ort as never, modelPath: message.modelPath!, voicesDir: message.voicesDir!, lexiconDir: message.lexiconDir, threads: message.threads ?? 4, phonemize
       });
       reply({ id: message.id, type: 'ok' });
     } else if (message.type === 'synthesize') {

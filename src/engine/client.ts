@@ -35,6 +35,7 @@ export class NaturalEngine implements SpeechEngine {
     private readonly script: string,
     private readonly modelPath: string,
     private readonly voicesDir: string,
+    private readonly lexiconDir: string,
     private readonly threads: number,
     private readonly log: (message: string) => void
   ) {}
@@ -89,7 +90,7 @@ export class NaturalEngine implements SpeechEngine {
       this.child = undefined;
       this.loading = undefined;
     });
-    this.loading = this.send({ type: 'load', modelPath: this.modelPath, voicesDir: this.voicesDir, threads: this.threads })
+    this.loading = this.send({ type: 'load', modelPath: this.modelPath, voicesDir: this.voicesDir, lexiconDir: this.lexiconDir, threads: this.threads })
       .then(() => undefined, error => {
         this.dispose();
         throw error;

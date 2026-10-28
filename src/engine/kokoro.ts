@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import { VOCAB } from './vocab';
-import { pronounce, type Accent, type Segment } from './pronounce';
+import { pronounce, type Accent } from './pronounce';
+import { Lexicon, startsWithVowel, type LexiconData } from './lexicon';
 
 export const SAMPLE_RATE = 24000;
 const SAMPLES_PER_FRAME = 600;
@@ -36,39 +37,74 @@ interface SessionLike { run(feeds: Record<string, unknown>): Promise<Record<stri
 
 export class TooLongError extends Error {}
 
+/**
+ * Rewrites eSpeak NG IPA in the phoneme set Kokoro was trained on (misaki): single-symbol diphthongs
+ * and affricates, no length marks in American English, and so on. Follows misaki's EspeakFallback
+ * E2M table; eSpeak here has no tie marks, so only unambiguous sequences are merged.
+ */
+export function toMisaki(phonemes: string, accent: Accent): string {
+  let out = phonemes
+    .replace(/ʔˌn̩|ʔn̩/g, 'ʔn')
+    .replace(/aɪ/g, 'I').replace(/aʊ/g, 'W').replace(/eɪ/g, 'A').replace(/ɔɪ/g, 'Y')
+    .replace(/dʒ/g, 'ʤ').replace(/tʃ/g, 'ʧ')
+    .replace(/ʲo/g, 'jo').replace(/ʲə/g, 'jə').replace(/ʲ/g, '')
+    .replace(/ɚɹ/g, 'əɹ').replace(/ɚ/g, 'əɹ').replace(/r/g, 'ɹ').replace(/[xç]/g, 'k').replace(/ɐ/g, 'ə').replace(/ɬ/g, 'l')
+    .replace(/\u0303/g, '')
+    // Syllabic l at the end of a word, as in "table" or "tables".
+    .replace(/əl(?=[sz]?(?:\s|$|[;:,.!?—…"“”()]))/g, 'ᵊl');
+  if (accent === 'gb') {
+    out = out.replace(/eə/g, 'ɛː').replace(/iə/g, 'ɪə').replace(/əʊ/g, 'Q');
+  } else {
+    out = out.replace(/oʊ/g, 'O').replace(/ɜːɹ/g, 'ɜɹ').replace(/ɜː/g, 'ɜɹ').replace(/ɪə/g, 'iə').replace(/ː/g, '');
+  }
+  return out.replace(/e/g, 'A').replace(/o/g, 'ɔ').replace(/ʔ/g, 't');
+}
+
 function postprocess(phonemes: string, accent: Accent): string {
-  // Phoneme fixes used by the official kokoro.js frontend for eSpeak NG output.
+  // Fixes used by the official kokoro.js frontend for eSpeak NG output, then misaki's symbols.
   let out = phonemes
     .replace(/kəkˈoːɹoʊ/g, 'kˈoʊkəɹoʊ')
     .replace(/kəkˈɔːɹəʊ/g, 'kˈəʊkəɹəʊ')
-    .replace(/ʲ/g, 'j')
-    .replace(/r/g, 'ɹ')
-    .replace(/x/g, 'k')
-    .replace(/ɬ/g, 'l')
     .replace(/(?<=[a-zɹː])(?=hˈʌndɹɪd)/g, ' ')
     .replace(/ z(?=[;:,.!?¡¿—…"«»“” ]|$)/g, 'z');
   if (accent === 'us') out = out.replace(/(?<=nˈaɪn)ti(?!ː)/g, 'di');
-  return out.replace(/\s+/g, ' ').trim();
+  return toMisaki(out, accent).replace(/\s+/g, ' ').trim();
 }
 
 const PUNCTUATION = /[;:,.!?—…"“”()]/g;
 
+interface Piece { word: number; text?: string; phonemes?: string; punct?: string }
+
 export class KokoroModel {
   private readonly voices = new Map<string, Float32Array>();
   private readonly cache = new Map<string, string>();
+  private readonly lexicons = new Map<Accent, Promise<Lexicon | undefined>>();
 
   private constructor(
     private readonly ort: OrtLike,
     private readonly session: SessionLike,
     private readonly voicesDir: string,
-    private readonly phonemizer: Phonemize
+    private readonly phonemizer: Phonemize,
+    private readonly lexiconDir: string | undefined
   ) {}
 
-  static async load(options: { ort: OrtLike; modelPath: string; voicesDir: string; threads: number; phonemize: Phonemize }): Promise<KokoroModel> {
+  static async load(options: { ort: OrtLike; modelPath: string; voicesDir: string; threads: number; phonemize: Phonemize; lexiconDir?: string }): Promise<KokoroModel> {
     const session = await options.ort.InferenceSession.create(options.modelPath, {
       intraOpNumThreads: options.threads, interOpNumThreads: 1, graphOptimizationLevel: 'all', executionMode: 'sequential'
     });
-    return new KokoroModel(options.ort, session, options.voicesDir, options.phonemize);
+    return new KokoroModel(options.ort, session, options.voicesDir, options.phonemize, options.lexiconDir);
+  }
+
+  /** misaki's curated pronunciations, the phonemes Kokoro was trained on; eSpeak covers unknown words. */
+  private lexicon(accent: Accent): Promise<Lexicon | undefined> {
+    let lexicon = this.lexicons.get(accent);
+    if (!lexicon) {
+      lexicon = this.lexiconDir
+        ? readFile(path.join(this.lexiconDir, `${accent}.json`), 'utf8').then(text => new Lexicon(JSON.parse(text) as LexiconData, accent === 'gb'))
+        : Promise.resolve(undefined);
+      this.lexicons.set(accent, lexicon);
+    }
+    return lexicon;
   }
 
   private async voice(name: string): Promise<Float32Array> {
@@ -128,6 +164,7 @@ export class KokoroModel {
   private async synthesizeOnce(request: SynthesisRequest): Promise<SynthesizedSegment[]> {
     const accent: Accent = request.voice.startsWith('b') ? 'gb' : 'us';
     const dictionary = new Map(request.dictionary ?? []);
+    const lexicon = await this.lexicon(accent);
     const ids: number[] = [0];
     const spans: ([number, number] | null)[][] = [];
     const push = (text: string) => {
@@ -141,45 +178,53 @@ export class KokoroModel {
     };
 
     for (const [u, utterance] of request.utterances.entries()) {
-      const wordSpans: ([number, number] | null)[] = utterance.words.map(() => null);
-      let phrase: { index: number; segments: Segment[] }[] = [];
-      const flush = async () => {
-        let run: { index: number; text: string }[] = [];
-        const emitRun = async () => {
-          if (!run.length) return;
-          await this.emitRun(run, accent, wordSpans, push, space, ids);
-          run = [];
-        };
-        for (const entry of phrase) {
-          if (entry.segments.every(segment => 'text' in segment)) {
-            run.push({ index: entry.index, text: entry.segments.map(segment => (segment as { text: string }).text).join(' ') });
+      const pieces: Piece[] = [];
+      for (const [k, word] of utterance.words.entries()) {
+        for (const segment of pronounce(word.text, accent, dictionary)) {
+          if ('phonemes' in segment) {
+            pieces.push({ word: k, phonemes: toMisaki(segment.phonemes, accent) });
             continue;
           }
-          await emitRun();
-          let start = -1;
-          for (const segment of entry.segments) {
-            const phonemes = 'phonemes' in segment ? segment.phonemes : await this.espeak(segment.text, accent);
-            if (!phonemes) continue;
-            space();
-            if (start < 0) start = ids.length;
-            push(phonemes);
+          for (const token of segment.text.split(/[\s/]+|(?<=\p{L})-(?=\p{L})/u)) {
+            const text = token.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}']+$/gu, '');
+            if (text) pieces.push({ word: k, text });
           }
-          if (start >= 0 && ids.length > start) wordSpans[entry.index] = [start, ids.length];
         }
-        await emitRun();
-        phrase = [];
-      };
-      for (const [k, word] of utterance.words.entries()) {
-        const segments = pronounce(word.text, accent, dictionary);
-        if (segments.length) phrase.push({ index: k, segments });
         const marks = (word.sep.match(PUNCTUATION) ?? []).join('');
         const last = k === utterance.words.length - 1;
-        if (marks || last) {
-          await flush();
-          // Keep a phrase boundary between utterances even when a long sentence was cut without punctuation.
-          push(marks || (last && u < request.utterances.length - 1 ? ',' : '.'));
-          if (!last || u < request.utterances.length - 1) ids.push(SPACE);
+        // Keep a phrase boundary between utterances even when a long sentence was cut without punctuation.
+        if (marks || last) pieces.push({ word: -1, punct: marks || (u < request.utterances.length - 1 ? ',' : '.') });
+      }
+      // Resolve right to left, as misaki does, so "the", "a", "to" and "in" can depend on the next sound.
+      let nextVowel: boolean | null = null;
+      let nextIsTo = false;
+      for (let i = pieces.length - 1; i >= 0; i--) {
+        const piece = pieces[i]!;
+        if (piece.punct !== undefined) {
+          if (/[;:,.!?—…]/.test(piece.punct)) nextVowel = null;
+          nextIsTo = false;
+          continue;
         }
+        if (piece.text !== undefined) {
+          piece.phonemes = lexicon?.word(piece.text, { nextVowel, nextIsTo }) ?? await this.espeak(piece.text, accent);
+        }
+        const vowel = startsWithVowel(piece.phonemes);
+        if (vowel !== undefined) nextVowel = vowel;
+        nextIsTo = /^to$/i.test(piece.text ?? '');
+      }
+      const wordSpans: ([number, number] | null)[] = utterance.words.map(() => null);
+      for (const piece of pieces) {
+        if (piece.punct !== undefined) {
+          push(piece.punct);
+          continue;
+        }
+        if (!piece.phonemes) continue;
+        space();
+        const start = ids.length;
+        push(piece.phonemes);
+        if (ids.length === start) continue;
+        const existing = wordSpans[piece.word];
+        wordSpans[piece.word] = existing ? [existing[0], ids.length] : [start, ids.length];
       }
       spans.push(wordSpans);
     }
@@ -197,43 +242,6 @@ export class KokoroModel {
     const waveform = output.waveform!.data as Float32Array;
     const durations = output.durations!.data as Float32Array;
     return split(waveform, durations, spans, request.utterances.map(u => u.pause));
-  }
-
-  private async emitRun(run: { index: number; text: string }[], accent: Accent, wordSpans: ([number, number] | null)[],
-    push: (text: string) => void, space: () => void, ids: number[]): Promise<void> {
-    const phonemes = await this.espeak(run.map(entry => entry.text).join(' '), accent);
-    const words = phonemes.split(' ').filter(Boolean);
-    if (!words.length) return;
-    const counts = await Promise.all(run.map(async entry => (await this.espeak(entry.text, accent)).split(' ').filter(Boolean).length));
-    const positions: [number, number][] = [];
-    for (const word of words) {
-      space();
-      const start = ids.length;
-      push(word);
-      positions.push([start, ids.length]);
-    }
-    if (counts.reduce((a, b) => a + b, 0) === words.length) {
-      // eSpeak produced the same words in context as in isolation: map them exactly.
-      let p = 0;
-      run.forEach((entry, k) => {
-        const n = counts[k]!;
-        if (n) wordSpans[entry.index] = [positions[p]![0], positions[p + n - 1]![1]];
-        p += n;
-      });
-      return;
-    }
-    // eSpeak joined or split words in context (for example "in the"): divide the run by isolated lengths.
-    const weights = await Promise.all(run.map(async entry => Math.max(1, (await this.espeak(entry.text, accent)).replace(/[ˈˌ\s]/g, '').length)));
-    const total = weights.reduce((a, b) => a + b, 0);
-    const first = positions[0]![0];
-    const last = positions.at(-1)![1];
-    let before = 0;
-    run.forEach((entry, k) => {
-      const start = first + Math.round(((last - first) * before) / total);
-      before += weights[k]!;
-      const end = first + Math.round(((last - first) * before) / total);
-      if (end > start) wordSpans[entry.index] = [start, end];
-    });
   }
 }
 

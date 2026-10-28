@@ -3,7 +3,7 @@ import * as assert from 'node:assert/strict';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { KokoroModel, SAMPLE_RATE, split, type SynthesisRequest } from '../src/engine/kokoro';
+import { KokoroModel, SAMPLE_RATE, split, toMisaki, type SynthesisRequest } from '../src/engine/kokoro';
 import { spell } from '../src/engine/pronounce';
 import { VOCAB } from '../src/engine/vocab';
 
@@ -15,7 +15,11 @@ class FakeTensor {
 
 interface Feeds { input_ids: FakeTensor; style: FakeTensor; speed: FakeTensor }
 
-async function fixture(join = false) {
+// A stand-in for eSpeak that returns IPA-like letters, so expectations can be computed exactly.
+const fakeIpa = (text: string) => text.toLowerCase().replace(/e/g, 'ɛ').replace(/o/g, 'ɔ').replace(/a/g, 'æ').replace(/r/g, 'ɹ')
+  .replace(/g/g, 'ɡ').replace(/x/g, 'k').replace(/i/g, 'ɪ').replace(/u/g, 'ʊ').replace(/c/g, 'k');
+
+async function fixture(join = false, lexiconDir?: string) {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'cmr-kokoro-'));
   const voice = new Float32Array(510 * 256);
   for (let row = 0; row < 510; row++) voice.fill(row, row * 256, (row + 1) * 256);
@@ -36,13 +40,15 @@ async function fixture(join = false) {
       })
     }
   };
+  const calls: string[] = [];
   const phonemize = async (text: string) => {
-    let words = text.toLowerCase().replace(/g/g, 'ɡ').split(/\s+/).filter(Boolean);
-    if (join) words = words.join(' ').replace(/\bin the\b/g, 'inðə').split(' ');
+    calls.push(text);
+    let words = fakeIpa(text).split(/\s+/).filter(Boolean);
+    if (join) words = words.join(' ').replace(/\bɪn ðɛ\b/g, 'ɪnðɛ').split(' ');
     return [words.join(' ')];
   };
-  const model = await KokoroModel.load({ ort: ort as never, modelPath: 'unused', voicesDir: directory, threads: 1, phonemize });
-  return { model, runs, cleanup: () => rm(directory, { recursive: true, force: true }) };
+  const model = await KokoroModel.load({ ort: ort as never, modelPath: 'unused', voicesDir: directory, threads: 1, phonemize, lexiconDir });
+  return { model, runs, calls, cleanup: () => rm(directory, { recursive: true, force: true }) };
 }
 
 const request = (...utterances: [string, number][]): SynthesisRequest => ({
@@ -66,7 +72,9 @@ test('phoneme tokens are framed, punctuated and use exact acronym phonemes and t
   try {
     await model.synthesize(request(['The ANF team, now.', 0.3]));
     const text = decode(runs[0]!);
-    assert.equal(text, `$the ${spell('ANF')} team, now.$`);
+    const ipa = (word: string) => toMisaki(fakeIpa(word), 'us');
+    assert.equal(text, `$${ipa('the')} ˌAˌɛnˈɛf ${ipa('team')}, ${ipa('now')}.$`);
+    assert.equal(toMisaki(spell('ANF'), 'us'), 'ˌAˌɛnˈɛf');
     const count = (runs[0]!.input_ids.data as BigInt64Array).length - 2;
     assert.ok((runs[0]!.style.data as Float32Array).every(value => value === count));
     assert.deepEqual([...(runs[0]!.speed.data as Float32Array)], [1]);
@@ -94,18 +102,35 @@ test('segments split per utterance with the requested pauses and relative word t
   }
 });
 
-test('words that eSpeak joins in context still get ordered timings', async () => {
+test('every word gets its own exact, ordered span', async () => {
   const { model, cleanup } = await fixture(true);
   try {
     const [segment] = await model.synthesize(request(['look in the box.', 0.2]));
     const times = segment!.wordTimes;
     assert.equal(times.length, 8);
     assert.ok(times.every(t => t >= 0));
-    for (let i = 2; i < times.length; i += 2) assert.ok(times[i]! >= times[i - 2]!, 'starts are ordered');
-    assert.ok(times[3]! <= times[5]! && times[2]! < times[4]!, '"in" precedes "the" inside the joined word');
+    for (let i = 2; i < times.length; i += 2) assert.ok(times[i]! >= times[i - 1]!, 'each word starts after the previous one ends');
   } finally {
     await cleanup();
   }
+});
+
+test('the misaki lexicon supplies trained pronunciations and context, with eSpeak only for unknown words', async () => {
+  const { model, runs, calls, cleanup } = await fixture(false, path.resolve('lexicon'));
+  try {
+    await model.synthesize(request(['Read the agent permissions in the Kusto table.', 0.3]));
+    const text = decode(runs[0]!);
+    assert.equal(text, `$ɹˈid ði ˈAʤᵊnt pəɹmˈɪʃənz ɪn ðə ${toMisaki(fakeIpa('kusto'), 'us')} tˈAbᵊl.$`);
+    assert.deepEqual(calls, ['Kusto'], 'only the unknown word goes to eSpeak');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('eSpeak IPA is rewritten in the symbols Kokoro was trained on', () => {
+  assert.equal(toMisaki('dˈeɪɾə bˈaʊndɚɹi ˈeɪdʒənt tʃˈɜːtʃ ɐ tˈeɪbəlz ɡˈoʊ', 'us'), 'dˈAɾə bˈWndəɹi ˈAʤənt ʧˈɜɹʧ ə tˈAbᵊlz ɡˈO');
+  assert.equal(toMisaki('kˈɑːɹ fˈiːt', 'us'), 'kˈɑɹ fˈit');
+  assert.equal(toMisaki('ɡˈəʊ hˈeə', 'gb'), 'ɡˈQ hˈɛː');
 });
 
 test('requests over the token limit are split and recombined transparently', async () => {
@@ -156,7 +181,7 @@ test('real Kokoro model produces timed speech', {
   const directory = process.env.CMR_MODEL_DIR!;
   const file = ['model_quantized.onnx', 'model.onnx'].map(name => path.join(directory, 'onnx', name))
     .find(candidate => require('node:fs').existsSync(candidate))!;
-  const model = await KokoroModel.load({ ort: ort as never, modelPath: file, voicesDir: path.join(directory, 'voices'), threads: 4, phonemize });
+  const model = await KokoroModel.load({ ort: ort as never, modelPath: file, voicesDir: path.join(directory, 'voices'), threads: 4, phonemize, lexiconDir: path.resolve('lexicon') });
   const segments = await model.synthesize(request(['The ANF team reads tables, row by row.', 0.3], ['Mail. State: ready.', 0.5]));
   assert.equal(segments.length, 2);
   for (const segment of segments) {
