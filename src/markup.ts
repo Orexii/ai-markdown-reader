@@ -1,3 +1,5 @@
+import { BASIC_SPEEDS, formatSpeed } from './speeds';
+
 export interface MarkupOptions {
   cspSource: string;
   nonce: string;
@@ -6,9 +8,6 @@ export interface MarkupOptions {
   skipBack: number;
   skipForward: number;
 }
-
-/** Playback speeds offered everywhere: quarter steps from half to triple speed. */
-export const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3] as const;
 
 const ICONS: Record<string, string> = {
   play: '<path d="M8 5v14l11-7z"/>',
@@ -26,8 +25,6 @@ function icon(name: string, label = '', attributes = ''): string {
   return `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"${attributes ? ` ${attributes}` : ''}>${ICONS[name]!.replace('%', label)}</svg>`;
 }
 
-export const formatSpeed = (speed: number) => `${Number(speed.toFixed(2))}×`;
-
 /** The volume control: a thin vertical slider styled like the progress bar, with the speaker under it to mute. */
 function volumeMarkup(): string {
   const icons = `${icon('volumeHigh', '', 'data-level="high"')}${icon('volumeLow', '', 'data-level="low" hidden')}${icon('volumeOff', '', 'data-level="off" hidden')}`;
@@ -39,7 +36,8 @@ function volumeMarkup(): string {
 
 /** The compact player shown in the Read Aloud view. The text itself is highlighted in the editor. */
 export function playerMarkup(options: MarkupOptions): string {
-  const speeds = SPEEDS.map(speed => `<option value="${speed}"${speed === 1 ? ' selected' : ''}>${formatSpeed(speed)}</option>`).join('');
+  // The player replaces these with the current list (and the More speeds toggle) once it starts.
+  const speeds = BASIC_SPEEDS.map(speed => `<option value="${speed}"${speed === 1 ? ' selected' : ''}>${formatSpeed(speed)}</option>`).join('');
   return `<!doctype html>
 <html lang="en"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -81,6 +79,7 @@ ${volumeMarkup()}
 <label>Code blocks <select id="code-blocks"><option value="announce">Announce</option><option value="read">Read aloud</option><option value="skip">Skip</option></select></label>
 <label class="check"><input id="words" type="checkbox"> Highlight each word</label>
 <label class="check"><input id="follow" type="checkbox"> Keep the reading in view</label>
+<label class="check"><input id="more-speeds" type="checkbox"> More speeds (0.25× to 5×)</label>
 <button id="engine-switch" class="link-button"></button>
 </div>
 </main>

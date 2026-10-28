@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { formatSpeed } from './markup';
+import { formatSpeed } from './speeds';
 import type { Detached } from './highlight';
 
 export interface ControlState {

@@ -1,6 +1,6 @@
 # Third-party notices
 
-Clear Markdown Reader's own source code is MIT-licensed (see LICENSE). Packaged releases (.vsix) also
+AI Markdown Reader's own source code is MIT-licensed (see LICENSE). Packaged releases (.vsix) also
 contain the components below.
 
 **eSpeak NG.** The bundled phonemizer package contains eSpeak NG compiled to WebAssembly. eSpeak NG is

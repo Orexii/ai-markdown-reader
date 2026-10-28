@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b3d66"/>
+      <stop offset="1" stop-color="#141c33"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.4" r="0.52">
+      <stop offset="0" stop-color="#5677b8" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#5677b8" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="frame"><rect width="512" height="512" rx="112"/></clipPath>
+    <path id="head" d="M256 120 C330 120 390 168 402 234 C408 266 402 294 390 316 Q404 312 414 310 Q404 320 396 328 Q406 334 412 342 Q396 344 384 348 C352 372 302 384 256 384 C210 384 160 372 128 348 Q116 344 100 342 Q106 334 116 328 Q108 320 98 310 Q108 312 122 316 C110 294 104 266 110 234 C122 168 182 120 256 120 Z"/>
+    <clipPath id="face"><use href="#head"/></clipPath>
+  </defs>
+
+  <g clip-path="url(#frame)">
+    <rect width="512" height="512" fill="url(#bg)"/>
+    <rect width="512" height="512" fill="url(#glow)"/>
+
+    <!-- Body: red shoulders and a fluffy cream chest, with Wagyu's yellow harness. -->
+    <path d="M92 540 C92 420 160 330 256 330 C352 330 420 420 420 540 Z" fill="#d4813d"/>
+    <path d="M168 540 C172 430 206 360 256 360 C306 360 340 430 344 540 Z" fill="#f6e3c6"/>
+    <path d="M132 372 C190 402 322 402 380 372 L392 404 C330 440 182 440 120 404 Z" fill="#f4c21a" stroke="#1d1d1f" stroke-width="7" stroke-linejoin="round"/>
+
+    <g transform="translate(256 236) scale(0.94) translate(-256 -252)">
+      <!-- Ears, behind the head. -->
+      <path d="M288 154 Q318 98 364 66 Q386 132 404 218 Z" fill="#cf7a37"/>
+      <path d="M308 160 Q334 118 358 96 Q372 144 384 196 Z" fill="#f6e2c6"/>
+      <path d="M324 166 Q344 132 356 118 Q366 152 372 184 Z" fill="#e2a978"/>
+      <path d="M224 154 Q194 98 148 66 Q126 132 108 218 Z" fill="#cf7a37"/>
+      <path d="M204 160 Q178 118 154 96 Q140 144 128 196 Z" fill="#f6e2c6"/>
+      <path d="M188 166 Q168 132 156 118 Q146 152 140 184 Z" fill="#e2a978"/>
+
+      <!-- Head, with cream cheeks, muzzle and chin (urajiro) and the dark stripe down his forehead. -->
+      <use href="#head" fill="#d9883f"/>
+      <g clip-path="url(#face)">
+        <path d="M146 170 C184 138 328 138 366 170 C332 154 290 150 256 162 C222 150 180 154 146 170 Z" fill="#c96f30" opacity="0.7"/>
+        <path d="M36 288 C128 238 194 250 224 276 C238 290 242 300 244 308 L268 308 C270 300 274 290 288 276 C318 250 384 238 476 288 L476 520 L36 520 Z" fill="#f7e6cc"/>
+        <path d="M248 126 Q256 122 264 126 L259 210 Q256 216 253 210 Z" fill="#9b4c1e" opacity="0.85"/>
+      </g>
+
+      <!-- Cream eyebrow spots. -->
+      <ellipse cx="198" cy="196" rx="15" ry="9" fill="#f7e6cc" transform="rotate(-12 198 196)"/>
+      <ellipse cx="314" cy="196" rx="15" ry="9" fill="#f7e6cc" transform="rotate(12 314 196)"/>
+
+      <!-- Kind, almond eyes. -->
+      <ellipse cx="200" cy="236" rx="24" ry="16" fill="#2a1810" transform="rotate(-10 200 236)"/>
+      <ellipse cx="312" cy="236" rx="24" ry="16" fill="#2a1810" transform="rotate(10 312 236)"/>
+      <circle cx="192" cy="229" r="7" fill="#ffffff"/>
+      <circle cx="304" cy="229" r="7" fill="#ffffff"/>
+      <circle cx="209" cy="242" r="2.5" fill="#ffffff" opacity="0.8"/>
+      <circle cx="321" cy="242" r="2.5" fill="#ffffff" opacity="0.8"/>
+
+      <!-- Nose and an open, reading-aloud smile. -->
+      <path d="M256 316 L256 330" stroke="#3a2522" stroke-width="6" stroke-linecap="round"/>
+      <path d="M222 328 Q256 348 290 328 Q284 368 256 372 Q228 368 222 328 Z" fill="#4a2420"/>
+      <path d="M236 354 Q256 343 276 354 Q274 370 256 372 Q238 370 236 354 Z" fill="#e5707a"/>
+      <path d="M228 290 Q256 278 284 290 Q288 306 270 316 Q256 322 242 316 Q224 306 228 290 Z" fill="#1e1513"/>
+      <ellipse cx="248" cy="292" rx="9" ry="4" fill="#ffffff" opacity="0.25"/>
+    </g>
+
+    <!-- The Markdown page he is reading. -->
+    <rect x="124" y="414" width="264" height="130" rx="14" fill="#fdfbf6"/>
+    <text x="152" y="461" font-family="Segoe UI, Arial, sans-serif" font-weight="800" font-size="38" fill="#2f7cf6">#</text>
+    <rect x="186" y="440" width="148" height="16" rx="8" fill="#334155"/>
+    <circle cx="160" cy="484" r="7" fill="#7c8aa0"/>
+    <rect x="178" y="477" width="168" height="13" rx="6.5" fill="#a5b1c2"/>
+    <circle cx="160" cy="511" r="7" fill="#7c8aa0"/>
+    <rect x="178" y="504" width="122" height="13" rx="6.5" fill="#a5b1c2"/>
+
+    <!-- White-socked paws holding the page. -->
+    <g fill="#fbefdc" stroke="#e1c69e" stroke-width="4">
+      <ellipse cx="172" cy="414" rx="32" ry="22"/>
+      <ellipse cx="340" cy="414" rx="32" ry="22"/>
+    </g>
+    <g stroke="#d8b98c" stroke-width="4" stroke-linecap="round">
+      <path d="M162 403 L164 418"/><path d="M180 403 L180 418"/>
+      <path d="M332 403 L332 418"/><path d="M350 403 L348 418"/>
+    </g>
+
+    <!-- Sound waves: reading aloud. -->
+    <g fill="none" stroke="#ffd166" stroke-width="12" stroke-linecap="round">
+      <path d="M424 262 Q446 300 424 338"/>
+      <path d="M456 236 Q490 300 456 364"/>
+    </g>
+  </g>
+</svg>

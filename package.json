@@ -1,8 +1,13 @@
 {
   "name": "clear-markdown-reader",
-  "displayName": "Clear Markdown Reader",
-  "description": "Listen to Markdown with a natural neural voice that runs on your computer. The editor highlights each sentence and word as it is read, tables and lists sound natural, and small podcast-style controls sit in the status bar.",
-  "version": "0.5.0",
+  "displayName": "AI Markdown Reader - Read Aloud",
+  "description": "Listen to Markdown with a natural AI voice that runs on your computer. Each sentence and word is highlighted as it is read, in the editor or the rendered preview; tables and lists sound natural; small podcast-style controls sit in the status bar.",
+  "icon": "media/extension-icon.png",
+  "galleryBanner": {
+    "color": "#1c2742",
+    "theme": "dark"
+  },
+  "version": "0.6.0",
   "publisher": "orexii",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -13,6 +18,7 @@
     "vscode": "^1.100.0"
   },
   "categories": [
+    "AI",
     "Other"
   ],
   "keywords": [
@@ -20,9 +26,13 @@
     "read aloud",
     "text to speech",
     "tts",
+    "ai voice",
     "neural voice",
+    "narrator",
+    "speech",
     "kokoro",
     "accessibility",
+    "preview",
     "tables",
     "offline"
   ],
@@ -43,155 +53,155 @@
       {
         "command": "clearMarkdown.read",
         "title": "Read Aloud",
-        "category": "Clear Markdown",
+        "category": "AI Markdown Reader",
         "icon": "$(unmute)"
       },
       {
         "command": "clearMarkdown.readFromTop",
         "title": "Read Aloud from the Start",
-        "category": "Clear Markdown"
+        "category": "AI Markdown Reader"
       },
       {
         "command": "clearMarkdown.readFromCursor",
         "title": "Read Aloud from Cursor",
-        "category": "Clear Markdown"
+        "category": "AI Markdown Reader"
       },
       {
         "command": "clearMarkdown.readSelection",
         "title": "Read Selection Aloud",
-        "category": "Clear Markdown"
+        "category": "AI Markdown Reader"
       },
       {
         "command": "clearMarkdown.openPreview",
         "title": "Open Read Aloud Preview",
-        "category": "Clear Markdown",
+        "category": "AI Markdown Reader",
         "icon": "$(open-preview)"
       },
       {
         "command": "clearMarkdown.openPreviewToSide",
         "title": "Open Read Aloud Preview to the Side",
-        "category": "Clear Markdown",
+        "category": "AI Markdown Reader",
         "icon": "$(open-preview)"
       },
       {
         "command": "clearMarkdown.readFromHere",
         "title": "Read Aloud from Here",
-        "category": "Clear Markdown"
+        "category": "AI Markdown Reader"
       },
       {
         "command": "clearMarkdown.showSource",
         "title": "Show Source",
-        "category": "Clear Markdown",
+        "category": "AI Markdown Reader",
         "icon": "$(go-to-file)"
       },
       {
         "command": "clearMarkdown.togglePlay",
         "title": "Play or Pause Reading",
-        "category": "Clear Markdown"
+        "category": "AI Markdown Reader"
       },
       {
         "command": "clearMarkdown.play",
         "title": "Resume Reading",
-        "category": "Clear Markdown",
+        "category": "AI Markdown Reader",
         "icon": "$(play)"
       },
       {
         "command": "clearMarkdown.pause",
         "title": "Pause Reading",
-        "category": "Clear Markdown",
+        "category": "AI Markdown Reader",
         "icon": "$(debug-pause)"
       },
       {
         "command": "clearMarkdown.stop",
         "title": "Stop Reading",
-        "category": "Clear Markdown",
+        "category": "AI Markdown Reader",
         "icon": "$(primitive-square)"
       },
       {
         "command": "clearMarkdown.skipBack",
         "title": "Skip Back",
-        "category": "Clear Markdown"
+        "category": "AI Markdown Reader"
       },
       {
         "command": "clearMarkdown.skipForward",
         "title": "Skip Forward",
-        "category": "Clear Markdown"
+        "category": "AI Markdown Reader"
       },
       {
         "command": "clearMarkdown.previousSentence",
         "title": "Previous Sentence",
-        "category": "Clear Markdown"
+        "category": "AI Markdown Reader"
       },
       {
         "command": "clearMarkdown.nextSentence",
         "title": "Next Sentence",
-        "category": "Clear Markdown"
+        "category": "AI Markdown Reader"
       },
       {
         "command": "clearMarkdown.previousParagraph",
         "title": "Previous Paragraph",
-        "category": "Clear Markdown"
+        "category": "AI Markdown Reader"
       },
       {
         "command": "clearMarkdown.nextParagraph",
         "title": "Next Paragraph",
-        "category": "Clear Markdown"
+        "category": "AI Markdown Reader"
       },
       {
         "command": "clearMarkdown.faster",
         "title": "Read Faster",
-        "category": "Clear Markdown"
+        "category": "AI Markdown Reader"
       },
       {
         "command": "clearMarkdown.slower",
         "title": "Read Slower",
-        "category": "Clear Markdown"
+        "category": "AI Markdown Reader"
       },
       {
         "command": "clearMarkdown.chooseSpeed",
         "title": "Choose Reading Speed",
-        "category": "Clear Markdown"
+        "category": "AI Markdown Reader"
       },
       {
         "command": "clearMarkdown.chooseVoice",
         "title": "Choose Voice",
-        "category": "Clear Markdown"
+        "category": "AI Markdown Reader"
       },
       {
         "command": "clearMarkdown.backToReading",
         "title": "Scroll Back to the Reading Position",
-        "category": "Clear Markdown"
+        "category": "AI Markdown Reader"
       },
       {
         "command": "clearMarkdown.showPlayer",
         "title": "Show Player",
-        "category": "Clear Markdown"
+        "category": "AI Markdown Reader"
       },
       {
         "command": "clearMarkdown.refreshReading",
         "title": "Update Reading After Edits",
-        "category": "Clear Markdown"
+        "category": "AI Markdown Reader"
       },
       {
         "command": "clearMarkdown.describeBlock",
         "title": "Describe Table or Code with Copilot",
-        "category": "Clear Markdown",
+        "category": "AI Markdown Reader",
         "icon": "$(sparkle)"
       },
       {
         "command": "clearMarkdown.restoreBlock",
         "title": "Use the Original Narration",
-        "category": "Clear Markdown"
+        "category": "AI Markdown Reader"
       },
       {
         "command": "clearMarkdown.installNaturalVoice",
         "title": "Download Natural Voice",
-        "category": "Clear Markdown"
+        "category": "AI Markdown Reader"
       },
       {
         "command": "clearMarkdown.removeNaturalVoice",
         "title": "Remove Downloaded Natural Voice",
-        "category": "Clear Markdown"
+        "category": "AI Markdown Reader"
       }
     ],
     "menus": {
@@ -408,7 +418,7 @@
       }
     ],
     "configuration": {
-      "title": "Clear Markdown Reader",
+      "title": "AI Markdown Reader",
       "properties": {
         "clearMarkdown.engine": {
           "type": "string",
@@ -514,21 +524,16 @@
         },
         "clearMarkdown.rate": {
           "type": "number",
-          "enum": [
-            0.5,
-            0.75,
-            1,
-            1.25,
-            1.5,
-            1.75,
-            2,
-            2.25,
-            2.5,
-            2.75,
-            3
-          ],
           "default": 1,
-          "description": "Reading speed, from half to triple speed in quarter steps. Pitch stays natural."
+          "minimum": 0.25,
+          "maximum": 5,
+          "multipleOf": 0.25,
+          "markdownDescription": "Reading speed, in quarter steps from 0.25 to 5. Pitch stays natural. The speed menu offers 0.5×, 1×, 1.5× and 2× unless `#clearMarkdown.expandedSpeeds#` is on."
+        },
+        "clearMarkdown.expandedSpeeds": {
+          "type": "boolean",
+          "default": false,
+          "description": "Offer every speed from 0.25× to 5× in quarter steps. When off, the speed menu has 0.5×, 1×, 1.5× and 2×."
         },
         "clearMarkdown.volume": {
           "type": "integer",
@@ -617,7 +622,7 @@
           "type": "webview",
           "id": "clearMarkdown.player",
           "name": "Read Aloud",
-          "contextualTitle": "Clear Markdown Reader",
+          "contextualTitle": "AI Markdown Reader",
           "icon": "media/icon.svg",
           "visibility": "collapsed"
         }

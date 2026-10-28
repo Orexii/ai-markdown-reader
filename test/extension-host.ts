@@ -110,9 +110,21 @@ export async function run(): Promise<void> {
   assert.equal(current.wordText!.replace(/[*_`]/g, ''), current.expectedWord, 'highlights moved with the edit');
   await document.save();
 
-  // Close the sidebar: the hidden player keeps playing at triple speed while the editor follows along.
+  // Close the sidebar: the hidden player keeps playing while the editor follows along. The short speed list
+  // stops at 2x; with More speeds on, it goes on in quarter steps.
   await vscode.commands.executeCommand('workbench.action.closeSidebar');
-  for (let i = 0; i < 8; i++) await vscode.commands.executeCommand('clearMarkdown.faster');
+  for (let i = 0; i < 3; i++) await vscode.commands.executeCommand('clearMarkdown.faster');
+  await until(s => s.rate === 2, 'the short speed list to stop at 2x');
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  assert.equal((await state()).rate, 2, 'the short speed list has nothing above 2x');
+  await config.update('expandedSpeeds', true, vscode.ConfigurationTarget.Global);
+  const faster = async (target: number) => {
+    for (let tries = 0; tries < 40 && (await state()).rate < target; tries++) {
+      await vscode.commands.executeCommand('clearMarkdown.faster');
+      await new Promise(resolve => setTimeout(resolve, 150));
+    }
+  };
+  await faster(3);
   current = await until(s => s.rate === 3 && !s.viewVisible, 'triple speed with the player hidden');
   const hiddenFrom = current.index;
   await until(s => s.index >= hiddenFrom + 3, 'progress while the player is hidden', 60_000);
@@ -142,7 +154,8 @@ export async function run(): Promise<void> {
   await vscode.commands.executeCommand('clearMarkdown.togglePlay');
   await until(s => !s.playing, 'pause in the preview');
   await vscode.window.tabGroups.close(allTabs().filter(isTab('clearMarkdown.preview')));
-  for (let i = 0; i < 8; i++) await vscode.commands.executeCommand('clearMarkdown.slower');
+  await config.update('rate', 1, vscode.ConfigurationTarget.Global);
+  await until(s => s.rate === 1, 'normal speed');
 
   // The player is reused, so reading a selection plays at once with no new click.
   await vscode.window.showTextDocument(document);
@@ -154,6 +167,24 @@ export async function run(): Promise<void> {
   current = await until(s => !!s.sentenceText, 'selection highlight');
   assert.equal(current.sentenceText, 'The ANF team reads tables, row by row.');
 
+  // Five times speed on a document whose audio has not been made yet: how well generation keeps up.
+  const fast = path.join(os.tmpdir(), `clear-markdown-e2e-fast-${Date.now()}.md`);
+  const topics = ['Kusto clusters', 'Geneva logs', 'certificate rotation', 'regional rollouts', 'capacity planning', 'incident reviews'];
+  await writeFile(fast, topics.map((topic, n) => `## ${topic}\n\n` + Array.from({ length: 5 }, (_, k) =>
+    `Point ${k + 1} about ${topic} explains what the team checks before a change in section ${n + 1}, and why it matters.`).join(' ')).join('\n\n') + '\n');
+  await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(fast));
+  await config.update('rate', 5, vscode.ConfigurationTarget.Global);
+  await vscode.commands.executeCommand('clearMarkdown.readFromTop');
+  current = await until(s => s.file === path.basename(fast) && s.rate === 5 && s.playing, 'five times speed on a new document');
+  const started = Date.now();
+  current = await until(s => s.events.includes('finished'), 'finishing at five times speed', 240_000);
+  const fastStalls = stats(current.events, 'stall-end ');
+  console.log(`Natural voice at 5x: ${current.total} passages in ${((Date.now() - started) / 1000).toFixed(1)} s; ${fastStalls.length} stall(s)` +
+    `${fastStalls.length ? `, longest ${Math.max(...fastStalls)} ms` : ''}.`);
+  await config.update('rate', undefined, vscode.ConfigurationTarget.Global);
+  await config.update('expandedSpeeds', undefined, vscode.ConfigurationTarget.Global);
+  await vscode.window.showTextDocument(document);
+
   // Changing the engine setting applies live; the next document uses system voices.
   await config.update('engine', 'system', vscode.ConfigurationTarget.Global);
   await vscode.commands.executeCommand('clearMarkdown.readFromTop');
@@ -164,5 +195,5 @@ export async function run(): Promise<void> {
   assert.equal(current.sentenceText, undefined, 'stopping clears the highlight');
   await config.update('engine', undefined, vscode.ConfigurationTarget.Global);
   await config.update('rate', undefined, vscode.ConfigurationTarget.Global);
-  console.log('Extension host: natural voice, editor highlighting, commands, hidden player at 3x, Read Aloud Preview, selection and system voice passed.');
+  console.log('Extension host: natural voice, editor highlighting, commands, short and expanded speeds, hidden player at 3x, Read Aloud Preview, selection, 5x and system voice passed.');
 }

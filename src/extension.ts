@@ -8,7 +8,7 @@ import { EditorHighlight } from './highlight';
 import { Controls } from './controls';
 import { DescribeLens } from './lens';
 import { PreviewPanels } from './previewPanel';
-import { SPEEDS, formatSpeed } from './markup';
+import { formatSpeed, speedChoices } from './speeds';
 
 const TRANSPORT = ['togglePlay', 'play', 'pause', 'skipBack', 'skipForward', 'previousSentence', 'nextSentence', 'previousParagraph', 'nextParagraph', 'faster', 'slower'];
 /** VS Code's own Markdown preview: the "Markdown Preview" editor type, and the Open Preview panel. */
@@ -43,7 +43,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const report = (error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
     services.output.appendLine(message);
-    void vscode.window.showErrorMessage(`Clear Markdown Reader: ${message}`);
+    void vscode.window.showErrorMessage(`AI Markdown Reader: ${message}`);
   };
   // The Open Preview panel does not say which file it shows; its title and the last Markdown editor do.
   let lastMarkdown: vscode.Uri | undefined = vscode.window.activeTextEditor?.document.languageId === 'markdown' ? vscode.window.activeTextEditor.document.uri : undefined;
@@ -153,9 +153,25 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   });
   register('clearMarkdown.chooseSpeed', async () => {
-    const items = SPEEDS.map(speed => ({ label: formatSpeed(speed), description: speed === reader.speed ? 'current' : undefined, speed }));
-    const picked = await vscode.window.showQuickPick(items, { title: 'Reading speed', placeHolder: 'Pitch stays natural at every speed' });
-    if (picked) reader.setRate(picked.speed);
+    const expanded = services.settings().expandedSpeeds;
+    type Item = vscode.QuickPickItem & { speed?: number; toggle?: boolean };
+    const speeds: Item[] = speedChoices(expanded, reader.speed).map(speed => ({ label: formatSpeed(speed), description: speed === reader.speed ? 'current' : undefined, speed }));
+    const pick = vscode.window.createQuickPick<Item>();
+    pick.title = 'Reading speed';
+    pick.placeholder = 'Pitch stays natural at every speed';
+    pick.items = [...speeds, { label: '', kind: vscode.QuickPickItemKind.Separator },
+      { label: expanded ? '$(fold) Fewer speeds' : '$(unfold) More speeds', description: expanded ? '0.5×, 1×, 1.5× and 2×' : '0.25× to 5× in quarter steps', toggle: true }];
+    pick.activeItems = speeds.filter(item => item.speed === reader.speed);
+    const picked = await new Promise<Item | undefined>(resolve => {
+      pick.onDidAccept(() => resolve(pick.selectedItems[0]));
+      pick.onDidHide(() => resolve(undefined));
+      pick.show();
+    });
+    pick.dispose();
+    if (picked?.toggle) {
+      await services.update('expandedSpeeds', !expanded);
+      await vscode.commands.executeCommand('clearMarkdown.chooseSpeed');
+    } else if (picked?.speed !== undefined) reader.setRate(picked.speed);
   });
   register('clearMarkdown.chooseVoice', async () => {
     try {

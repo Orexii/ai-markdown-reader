@@ -6,7 +6,7 @@ import { NaturalEngine } from './engine/client';
 import { SystemEngine } from './engine/system';
 import { NativeSpeech, type Voice } from './speech';
 import { ModelStore, DEFAULT_VOICE, voiceInfo, type Quality } from './model';
-import { SPEEDS } from './markup';
+import { nearestSpeed } from './speeds';
 
 export interface Settings {
   engine: 'natural' | 'system';
@@ -14,6 +14,8 @@ export interface Settings {
   naturalVoice: string;
   systemVoice: string;
   rate: number;
+  /** Offer every quarter step from 0.25x to 5x instead of the short list. */
+  expandedSpeeds: boolean;
   /** Player volume in percent. */
   volume: number;
   tableMode: 'rows' | 'columns';
@@ -32,15 +34,9 @@ export interface Position { line: number; index: number; total: number; at: numb
 
 const IDLE_SHUTDOWN_MS = 3 * 60 * 1000;
 
-/** The offered speed closest to a configured value (older versions allowed any value up to 3). */
-export function nearestSpeed(value: number): number {
-  const wanted = Number.isFinite(value) ? value : 1;
-  return SPEEDS.reduce<number>((best, speed) => (Math.abs(speed - wanted) < Math.abs(best - wanted) ? speed : best), 1);
-}
-
 /** Shared, long-lived state: settings, the model store, speech engines and saved positions. */
 export class Services implements vscode.Disposable {
-  readonly output = vscode.window.createOutputChannel('Clear Markdown Reader');
+  readonly output = vscode.window.createOutputChannel('AI Markdown Reader');
   readonly store: ModelStore;
   private natural: { engine: NaturalEngine; key: string } | undefined;
   private system: Promise<{ engine: SystemEngine; voices: Voice[]; directory: string }> | undefined;
@@ -62,6 +58,7 @@ export class Services implements vscode.Disposable {
       // "voice" is the 0.1 setting name for system voices.
       systemVoice: config.get<string>('systemVoice', '') || config.get<string>('voice', ''),
       rate: nearestSpeed(config.get<number>('rate', 1)),
+      expandedSpeeds: config.get<boolean>('expandedSpeeds', false),
       volume: Math.round(clamp(config.get<number>('volume', 100), 0, 100)),
       tableMode: config.get('tableMode') === 'columns' ? 'columns' : 'rows',
       codeBlocks: (['announce', 'read', 'skip'] as const).find(mode => mode === config.get('codeBlocks')) ?? 'announce',

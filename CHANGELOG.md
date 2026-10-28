@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0
+
+- **New name: AI Markdown Reader - Read Aloud**, and an icon: Wagyu, a red Shiba Inu, reading a
+  Markdown page aloud. Commands are now under **AI Markdown Reader** in the Command Palette. Settings,
+  keybindings and the downloaded voice are unchanged.
+- **A shorter speed menu.** It offers 0.5×, 1×, 1.5× and 2×. **More speeds…** at the bottom of the menu,
+  **More speeds** in the player settings, or `clearMarkdown.expandedSpeeds` offer every quarter step
+  from 0.25× to 5×. A speed you already use stays available until you change it.
+
 ## 0.5.0
 
 - **Read from the rendered preview.** A new **Read Aloud Preview** looks like VS Code's Markdown preview

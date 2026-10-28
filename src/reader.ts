@@ -9,7 +9,7 @@ import { dictionaryFrom } from './engine/pronounce';
 import { parseWav } from './engine/wav';
 import { describeBlock } from './copilot';
 import { applyChanges, locate, shiftRange, type TextChange } from './ranges';
-import { SPEEDS } from './markup';
+import { isSpeed } from './speeds';
 import type { Services, Settings } from './services';
 import type { PlayerMessage, PlayerView } from './view';
 import type { EditorHighlight } from './highlight';
@@ -296,7 +296,7 @@ export class Reader implements vscode.Disposable {
     }
     const s = this.settings;
     this.post(planMessage(reading.doc, this.revision, this.start, {
-      rate: this.rate, volume: s.volume, followInEditor: s.followInEditor, highlightWords: s.highlightWords, skipBack: s.skipBack,
+      rate: this.rate, expandedSpeeds: s.expandedSpeeds, volume: s.volume, followInEditor: s.followInEditor, highlightWords: s.highlightWords, skipBack: s.skipBack,
       skipForward: s.skipForward, tableMode: s.tableMode, codeBlocks: s.codeBlocks
     }, reading.title, !!reading.selection));
     this.sendEngine();
@@ -479,6 +479,7 @@ export class Reader implements vscode.Disposable {
     switch (message.type) {
       case 'ready':
         this.sendPlan();
+        if (!this.reading) this.postSettings();
         break;
       case 'need':
         if (message.revision === this.revision && Array.isArray(message.indices)) {
@@ -539,7 +540,7 @@ export class Reader implements vscode.Disposable {
     this.waiting = !!message.waiting;
     this.elapsed = Number(message.elapsed) || 0;
     this.total = Number(message.total) || 0;
-    if (typeof message.rate === 'number' && SPEEDS.includes(message.rate as typeof SPEEDS[number])) this.rate = message.rate;
+    if (isSpeed(message.rate)) this.rate = message.rate;
     if (typeof message.volume === 'number') this.volume = message.volume;
     this.muted = !!message.muted;
     this.start = { index, offset: Number(message.offset) || 0, word: -1, autoplay: this.playing };
@@ -568,7 +569,7 @@ export class Reader implements vscode.Disposable {
   private async setting(key: string, value: unknown): Promise<void> {
     switch (key) {
       case 'rate':
-        if (typeof value === 'number' && SPEEDS.includes(value as typeof SPEEDS[number])) {
+        if (isSpeed(value)) {
           this.rate = value;
           this.updateControls();
           await this.services.update('rate', value);
@@ -576,6 +577,9 @@ export class Reader implements vscode.Disposable {
         break;
       case 'volume':
         if (typeof value === 'number' && value >= 0 && value <= 100) await this.services.update('volume', Math.round(value));
+        break;
+      case 'expandedSpeeds':
+        if (typeof value === 'boolean') await this.services.update('expandedSpeeds', value);
         break;
       case 'voice':
         if (typeof value === 'string') await this.changeVoice(value);
@@ -596,7 +600,7 @@ export class Reader implements vscode.Disposable {
 
   /** Sets the speed from a command; the player applies it at once and saves it. */
   setRate(value: number): void {
-    if (!SPEEDS.includes(value as typeof SPEEDS[number])) return;
+    if (!isSpeed(value)) return;
     this.rate = value;
     this.updateControls();
     if (this.reading && this.view.ready) this.post({ type: 'command', action: 'setRate', value });
@@ -613,7 +617,7 @@ export class Reader implements vscode.Disposable {
     const after = this.services.settings();
     const changed = (key: string) => event.affectsConfiguration(`clearMarkdown.${key}`);
     this.settings = after;
-    const playerSettings = ['rate', 'volume', 'highlightWords', 'followInEditor', 'skipBackSeconds', 'skipForwardSeconds'].some(changed);
+    const playerSettings = ['rate', 'expandedSpeeds', 'volume', 'highlightWords', 'followInEditor', 'skipBackSeconds', 'skipForwardSeconds'].some(changed);
     if (!this.reading) {
       this.kind = after.engine;
       this.rate = after.rate;
@@ -647,7 +651,7 @@ export class Reader implements vscode.Disposable {
   private postSettings(): void {
     const s = this.settings;
     this.post({
-      type: 'settings', rate: this.rate, volume: s.volume, highlightWords: s.highlightWords, followInEditor: s.followInEditor,
+      type: 'settings', rate: this.rate, expandedSpeeds: s.expandedSpeeds, volume: s.volume, highlightWords: s.highlightWords, followInEditor: s.followInEditor,
       skipBack: s.skipBack, skipForward: s.skipForward, tableMode: s.tableMode, codeBlocks: s.codeBlocks
     });
   }

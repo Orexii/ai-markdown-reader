@@ -5,6 +5,7 @@ import { JSDOM } from 'jsdom';
 import { playerMarkup } from '../src/markup';
 import { buildDocument } from '../src/document';
 import { planMessage, type PlanSettings, type PlanStart } from '../src/plan';
+import { ALL_SPEEDS, BASIC_SPEEDS, formatSpeed, nearestSpeed, speedChoices } from '../src/speeds';
 
 const SAMPLE = [
   '# Heading',
@@ -56,7 +57,7 @@ function player(markdown = SAMPLE, overrides: Partial<PlanSettings> = {}) {
   Object.assign(window, { acquireVsCodeApi: () => ({ postMessage: (message: Posted) => posted.push(JSON.parse(JSON.stringify(message, (_, v) => (v instanceof window.Uint8Array ? `bytes:${v.length}` : v))) as Posted) }) });
   window.eval(readFileSync('media/player.js', 'utf8'));
   const doc = buildDocument(markdown);
-  const settings: PlanSettings = { rate: 1, volume: 100, followInEditor: true, highlightWords: true, skipBack: 10, skipForward: 30, tableMode: 'rows', codeBlocks: 'announce', ...overrides };
+  const settings: PlanSettings = { rate: 1, expandedSpeeds: false, volume: 100, followInEditor: true, highlightWords: true, skipBack: 10, skipForward: 30, tableMode: 'rows', codeBlocks: 'announce', ...overrides };
   const send = (data: object) => window.dispatchEvent(new window.MessageEvent('message', { data }));
   const $ = (id: string) => window.document.getElementById(id)!;
   const click = (id: string) => ($(id) as HTMLElement).click();
@@ -344,29 +345,53 @@ test('setup banner offers the download, shows progress and recovers from errors;
   }
 });
 
-test('speeds are quarter steps from 0.5x to 3x, pitch is preserved, and the choice is saved', async () => {
+test('the speed menu offers 0.5x, 1x, 1.5x and 2x, and More speeds adds every quarter step to 5x', async () => {
   const p = player();
   try {
     p.plan();
     p.ready();
-    const options = [...(p.$('rate') as HTMLSelectElement).options].map(option => option.textContent);
-    assert.deepEqual(options, ['0.5×', '0.75×', '1×', '1.25×', '1.5×', '1.75×', '2×', '2.25×', '2.5×', '2.75×', '3×']);
-    (p.$('rate') as HTMLSelectElement).value = '2.5';
-    p.$('rate').dispatchEvent(new p.window.Event('change'));
-    assert.ok(p.audios.every(audio => audio.playbackRate === 2.5 && audio.preservesPitch === true));
+    const select = p.$('rate') as HTMLSelectElement;
+    const options = () => [...select.options].map(option => option.textContent);
+    const choose = (value: string) => {
+      select.value = value;
+      select.dispatchEvent(new p.window.Event('change'));
+    };
+    assert.deepEqual(options(), ['0.5×', '1×', '1.5×', '2×', 'More speeds…']);
+    assert.deepEqual(BASIC_SPEEDS.map(formatSpeed), options().slice(0, -1), 'the player and the extension offer the same short list');
+    choose('1.5');
+    assert.ok(p.audios.every(audio => audio.playbackRate === 1.5 && audio.preservesPitch === true));
     p.key('+');
     p.key('+');
+    assert.equal(p.audios[0]!.playbackRate, 2, 'the short list stops at double speed');
+    p.key('-');
+    assert.equal(p.audios[0]!.playbackRate, 1.5, 'and steps through the short list');
+
+    choose('toggle');
+    assert.deepEqual(options(), [...ALL_SPEEDS.map(formatSpeed), 'Fewer speeds'], 'every quarter step from 0.25x to 5x');
+    assert.equal(select.value, '1.5', 'the speed is unchanged');
+    assert.deepEqual(p.last('setting'), { type: 'setting', key: 'expandedSpeeds', value: true });
+    assert.equal((p.$('more-speeds') as HTMLInputElement).checked, true);
+    choose('4.75');
     p.key('+');
-    assert.equal(p.audios[0]!.playbackRate, 3, 'stops at triple speed');
+    p.key('+');
+    assert.equal(p.audios[0]!.playbackRate, 5, 'stops at five times');
+    p.send({ type: 'command', action: 'setRate', value: 0.1 });
+    assert.equal(p.audios[0]!.playbackRate, 0.25, 'values snap to the nearest quarter step in range');
+
+    // Back to the short list: a speed that is not in it stays available until the listener changes it.
+    p.send({ type: 'command', action: 'setRate', value: 2.75 });
+    (p.$('more-speeds') as HTMLInputElement).click();
+    assert.deepEqual(p.last('setting'), { type: 'setting', key: 'expandedSpeeds', value: false });
+    assert.deepEqual(options(), ['0.5×', '1×', '1.5×', '2×', '2.75×', 'More speeds…']);
     p.key('-');
-    p.key('-');
-    p.key('-');
-    assert.equal(p.audios[0]!.playbackRate, 2.25);
-    assert.equal((p.$('rate') as HTMLSelectElement).value, '2.25');
-    p.send({ type: 'command', action: 'setRate', value: 0.9 });
-    assert.equal(p.audios[0]!.playbackRate, 1, 'other values snap to the nearest step');
+    assert.equal(p.audios[0]!.playbackRate, 2);
+    assert.deepEqual(options(), ['0.5×', '1×', '1.5×', '2×', 'More speeds…']);
     await p.wait(350);
-    assert.deepEqual(p.last('setting'), { type: 'setting', key: 'rate', value: 1 });
+    assert.deepEqual(p.last('setting'), { type: 'setting', key: 'rate', value: 2 });
+
+    // The setting changed elsewhere (Settings editor or the status bar picker) reaches the player.
+    p.send({ type: 'settings', rate: 2, expandedSpeeds: true, volume: 100, highlightWords: true, followInEditor: true, skipBack: 10, skipForward: 30, tableMode: 'rows', codeBlocks: 'announce' });
+    assert.equal(options().length, 21);
   } finally {
     await p.close();
   }
@@ -509,4 +534,15 @@ test('the vertical volume slider drags, scrolls, steps with keys, mutes and is s
   } finally {
     await p.close();
   }
+});
+
+test('the extension snaps saved speeds to quarter steps and offers the current speed', () => {
+  assert.equal(nearestSpeed(0.9), 1);
+  assert.equal(nearestSpeed(7), 5);
+  assert.equal(nearestSpeed(0), 0.25);
+  assert.equal(nearestSpeed(Number.NaN), 1);
+  assert.deepEqual(speedChoices(false, 1), [0.5, 1, 1.5, 2]);
+  assert.deepEqual(speedChoices(false, 3.25), [0.5, 1, 1.5, 2, 3.25]);
+  assert.equal(speedChoices(true, 1).length, 20);
+  assert.equal(formatSpeed(0.25), '0.25×');
 });

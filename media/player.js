@@ -3,7 +3,9 @@
   'use strict';
   const vscode = acquireVsCodeApi();
   const $ = id => document.getElementById(id);
-  const SPEEDS = [...$('rate').options].map(option => Number(option.value));
+  /** The short speed list, and every quarter step from 0.25× to 5× (the same lists as src/speeds.ts). */
+  const BASIC_SPEEDS = [0.5, 1, 1.5, 2];
+  const ALL_SPEEDS = Array.from({ length: 20 }, (_, i) => (i + 1) / 4);
   /** Longest run of consecutive passages joined into one continuous track. */
   const MAX_TRACK_SECONDS = 120;
   /** How long before a track ends (wall-clock seconds) the next one is prepared in the other player. */
@@ -38,6 +40,8 @@
   let pendingOffset = 0;
   let pendingWord = null;
   let rate = 1;
+  /** Offer every quarter step instead of the short list. */
+  let expandedSpeeds = false;
   /** Volume slider position (0–100) and mute, which keeps the position to restore. */
   let volume = 100;
   let muted = false;
@@ -580,14 +584,14 @@
   }
 
   function setRate(value, persist = true) {
-    const wanted = Number(value) || 1;
-    rate = SPEEDS.reduce((best, speed) => (Math.abs(speed - wanted) < Math.abs(best - wanted) ? speed : best), 1);
+    // Any quarter step from 0.25× to 5× is valid, even if the menu shows the short list.
+    rate = clamp(Math.round((Number(value) || 1) * 4) / 4, 0.25, 5);
     for (const player of players) {
       player.el.defaultPlaybackRate = rate;
       player.el.playbackRate = rate;
     }
     clearHandoff();
-    $('rate').value = String(rate);
+    renderSpeeds();
     updateTime();
     report(true);
     if (!persist) return;
@@ -598,9 +602,32 @@
     }, 300);
   }
 
+  /** The speeds on offer: the short or full list, plus the current speed if it is not in it. */
+  function speedList() {
+    const list = expandedSpeeds ? ALL_SPEEDS : BASIC_SPEEDS;
+    return list.includes(rate) ? list : [...list, rate].sort((a, b) => a - b);
+  }
+
   function stepRate(step) {
-    const position = SPEEDS.indexOf(rate);
-    setRate(SPEEDS[clamp((position < 0 ? SPEEDS.indexOf(1) : position) + step, 0, SPEEDS.length - 1)]);
+    const list = speedList();
+    setRate(list[clamp(list.indexOf(rate) + step, 0, list.length - 1)]);
+  }
+
+  /** The speed menu: the speeds, then an entry that shows more (or fewer) of them. */
+  function renderSpeeds() {
+    const select = $('rate');
+    const options = speedList().map(value => new Option(formatRate(value), String(value)));
+    const toggle = new Option(expandedSpeeds ? 'Fewer speeds' : 'More speeds…', 'toggle');
+    select.replaceChildren(...options, document.createElement('hr'), toggle);
+    select.value = String(rate);
+    $('more-speeds').checked = expandedSpeeds;
+  }
+
+  function setExpandedSpeeds(on, persist) {
+    if (on === expandedSpeeds) return;
+    expandedSpeeds = on;
+    renderSpeeds();
+    if (persist) post({ type: 'setting', key: 'expandedSpeeds', value: on });
   }
 
   function applyVolume() {
@@ -880,11 +907,12 @@
     finished = false;
     stale = false;
     error = '';
+    if (typeof settings.expandedSpeeds === 'boolean') setExpandedSpeeds(settings.expandedSpeeds, false);
     setRate(settings.rate, false);
     syncVolume(settings.volume);
     renderSettings();
     if (navigator.mediaSession && typeof MediaMetadata === 'function') {
-      navigator.mediaSession.metadata = new MediaMetadata({ title: message.title || 'Markdown', artist: 'Clear Markdown Reader' });
+      navigator.mediaSession.metadata = new MediaMetadata({ title: message.title || 'Markdown', artist: 'AI Markdown Reader' });
     }
     rebuildTimeline();
     renderSetup();
@@ -941,6 +969,7 @@
 
   function onSettings(message) {
     Object.assign(settings, message);
+    if (typeof message.expandedSpeeds === 'boolean') setExpandedSpeeds(message.expandedSpeeds, false);
     // Ignore the echo of a speed the listener is still changing.
     if (!rateTimer && Math.abs(message.rate - rate) > 0.001) setRate(message.rate, false);
     syncVolume(message.volume);
@@ -986,7 +1015,16 @@
     scrubbing = false;
     seekTo(Number($('seek').value));
   });
-  $('rate').addEventListener('change', () => setRate($('rate').value));
+  $('rate').addEventListener('change', () => {
+    if ($('rate').value !== 'toggle') return setRate($('rate').value);
+    setExpandedSpeeds(!expandedSpeeds, true);
+    // Show the new list straight away.
+    try {
+      $('rate').showPicker?.();
+    } catch {
+      // Opening the menu needs a recent click; the listener can open it again.
+    }
+  });
   $('more').addEventListener('click', () => {
     const open = $('settings').hidden;
     $('settings').hidden = !open;
@@ -997,6 +1035,7 @@
   $('code-blocks').addEventListener('change', () => post({ type: 'setting', key: 'codeBlocks', value: $('code-blocks').value }));
   $('words').addEventListener('change', () => post({ type: 'setting', key: 'highlightWords', value: $('words').checked }));
   $('follow').addEventListener('change', () => post({ type: 'setting', key: 'followInEditor', value: $('follow').checked }));
+  $('more-speeds').addEventListener('change', () => setExpandedSpeeds($('more-speeds').checked, true));
   $('engine-switch').addEventListener('click', () => post({ type: engine.kind === 'system' ? 'useNatural' : 'useSystem' }));
   $('refresh').addEventListener('click', () => post({ type: 'refresh' }));
 
@@ -1126,6 +1165,7 @@
 
   applyVolume();
   renderVolume();
+  renderSpeeds();
   updateControls();
   updateTime();
   post({ type: 'ready' });

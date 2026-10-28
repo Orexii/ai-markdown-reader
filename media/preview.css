@@ -183,7 +183,7 @@ video {
   border-color: var(--vscode-contrastBorder);
 }
 
-/* Reading position: the same theme colors as the editor highlight (Clear Markdown Reader colors). */
+/* Reading position: the same theme colors as the editor highlight (AI Markdown Reader colors). */
 ::highlight(cmr-sentence) {
   background-color: var(--vscode-clearMarkdown-readingBackground, rgba(55, 148, 255, 0.15));
 }

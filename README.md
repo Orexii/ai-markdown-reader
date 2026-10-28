@@ -1,9 +1,11 @@
-# Clear Markdown Reader
+<p align="center"><img src="media/extension-icon.png" width="128" alt="Wagyu, a red Shiba Inu, reading a Markdown page aloud"></p>
 
-Listen to Markdown in VS Code with a **natural neural voice that runs on your computer**. Your editor,
+# AI Markdown Reader - Read Aloud
+
+Listen to Markdown in VS Code with a **natural AI voice that runs on your computer**. Your editor,
 or the rendered **Read Aloud Preview**, highlights each sentence and word as it is spoken and scrolls
 along with the voice. Small podcast-style controls sit in the status bar: back 10 seconds, forward 30,
-play/pause and speed from 0.5× to 3× in quarter steps.
+play/pause and speed (0.5×, 1×, 1.5× and 2×, or any quarter step from 0.25× to 5×).
 
 Tables are read with their column names, bullet points flow as sentences, and technical text such as
 `ANFObservabilityDB`, `IcM`, `v1.2.3` or `$12.50` is pronounced the way people say it.
@@ -29,11 +31,11 @@ not supported.
 
 The first time you read, the player offers to download the natural voice: **326 MB, once**
 (or 92 MB with the `compact` quality setting). After that, speech is generated entirely on your
-computer. You can also run **Clear Markdown: Download Natural Voice** ahead of time.
+computer. You can also run **AI Markdown Reader: Download Natural Voice** ahead of time.
 
 ## Use
 
-Open a Markdown file and click the speaker icon in the editor title, or run **Clear Markdown: Read
+Open a Markdown file and click the speaker icon in the editor title, or run **AI Markdown Reader: Read
 Aloud**. It resumes where you stopped last time. You can also right-click and **Read Aloud from
 Cursor** (`Ctrl+Alt+Enter`, `Cmd+Alt+Enter` on macOS), **Read Aloud from the Start**, or select text
 and **Read Selection Aloud**. While a file is being read, the editor title shows pause/resume and stop
@@ -49,12 +51,12 @@ file is being read, **Read Aloud from Cursor** jumps straight to the word under 
 | ↺ 10 | Back 10 seconds (`clearMarkdown.skipBackSeconds`) |
 | ▶ / ⏸ 0:42 / 5:10 | Play or pause; hover for Stop and the player |
 | 30 ↻ | Forward 30 seconds (`clearMarkdown.skipForwardSeconds`) |
-| 1× | Speed: 0.5× to 3× in quarter steps |
+| 1× | Speed: 0.5×, 1×, 1.5× or 2×; **More speeds** offers every quarter step from 0.25× to 5× |
 
 Keys work from anywhere while a file is being read: `Ctrl+Alt+P` play/pause, `Ctrl+Alt+,` back,
 `Ctrl+Alt+.` forward (`Ctrl+Cmd+…` on macOS). Headset and keyboard media keys work where the system
 supports them; their previous and next track keys skip by paragraph. Every control is also a
-**Clear Markdown** command in the Command Palette (previous and next sentence or paragraph, faster,
+**AI Markdown Reader** command in the Command Palette (previous and next sentence or paragraph, faster,
 slower, voice, speed), so you can assign your own keys.
 
 ### Reading the rendered preview
@@ -62,7 +64,7 @@ slower, voice, speed), so you can assign your own keys.
 You can also listen while looking at the rendered Markdown. The **Read Aloud Preview** looks like VS
 Code's Markdown preview and highlights the sentence and the spoken word as they are read, scrolling
 along (with the same **Back to reading** behavior). Double-click any word, or right-click and choose
-**Read Aloud from Here**, to start reading there. Open it with **Clear Markdown: Open Read Aloud
+**Read Aloud from Here**, to start reading there. Open it with **AI Markdown Reader: Open Read Aloud
 Preview** (or **…to the Side**), from the editor's **Reopen Editor With…** list, or from the Explorer
 context menu. It updates as you edit.
 
@@ -80,14 +82,16 @@ After that you can collapse it, close the sidebar or switch views, and reading c
 
 The section shows the current heading, a progress bar with heading marks and the time left, and
 buttons for previous paragraph, back 10 seconds, play/pause, forward 30 seconds, next paragraph, speed
-and settings (voice, how tables and code are read, word highlighting, following). Previous paragraph
-goes back to the start of the current paragraph first, like the previous-track button of a music
-player. On the right is a thin **vertical volume slider** with the speaker under it: drag it, click a
-spot or scroll over it, and click the speaker to mute. With the section focused, Space or K plays or
-pauses, ← / → or J / L skip, Shift+← / Shift+→ move by sentence, Shift+↑ / Shift+↓ by paragraph, ↑ / ↓
-change the volume, M mutes, and - / + change speed. If the sidebar is too narrow for one row, speed
-and settings move to a second row. You can drag the section anywhere, for example into the panel or
-the secondary side bar.
+and settings (voice, how tables and code are read, word highlighting, following, more speeds).
+Previous paragraph goes back to the start of the current paragraph first, like the previous-track
+button of a music player. The speed menu offers 0.5×, 1×, 1.5× and 2×; choose **More speeds…** at
+the bottom of it (or turn on **More speeds** in the settings) for every quarter step from 0.25× to 5×.
+On the right is a thin **vertical volume slider** with the speaker under it: drag it, click a spot or
+scroll over it, and click the speaker to mute. With the section focused, Space or K plays or pauses,
+← / → or J / L skip, Shift+← / Shift+→ move by sentence, Shift+↑ / Shift+↓ by paragraph, ↑ / ↓ change
+the volume, M mutes, and - / + change speed. If the sidebar is too narrow for one row, speed and
+settings move to a second row. You can drag the section anywhere, for example into the panel or the
+secondary side bar.
 
 ## How documents are read
 
@@ -115,7 +119,7 @@ Words are converted to the exact phonemes Kokoro was trained with, using the cur
 [misaki](https://github.com/hexgrad/misaki), Kokoro's own pronunciation frontend; eSpeak NG covers
 words the lexicon does not know.
 **Heart** (American English, the model authors' highest-graded voice) is the default; choose among 28
-American and British voices in the player settings or with **Clear Markdown: Choose Voice**. Other
+American and British voices in the player settings or with **AI Markdown Reader: Choose Voice**. Other
 voices download on demand (0.5 MB each).
 
 On the 16-core machine it was developed on, four CPU threads generate speech three to four times
@@ -123,7 +127,7 @@ faster than real time. The player prepares the next minute or two ahead and join
 sentences into one continuous track, so there is no gap or hitch between sentences, even at 2×. When
 little audio is ready (just after starting or skipping), it generates shorter pieces so they arrive
 in time. Use `clearMarkdown.threads` to change how many threads it uses. If speech ever falls behind,
-the **Clear Markdown Reader** output channel says so.
+the **AI Markdown Reader** output channel says so.
 
 If you prefer, or if the natural voice cannot run, choose **Use the system voice** in the player
 settings (`clearMarkdown.engine`: `system`). This uses Windows voices, macOS `say`, or `espeak-ng` on
@@ -146,7 +150,7 @@ the original narration. Don't use it for content you are not allowed to share.
 - Your documents are read on your computer. The natural voice and system voices never send text anywhere.
 - The only network access is downloading the voice files you ask for, from a pinned revision on Hugging
   Face; each file's size and SHA-256 are verified before use. They are stored in VS Code's global
-  storage. **Clear Markdown: Remove Downloaded Natural Voice** deletes them.
+  storage. **AI Markdown Reader: Remove Downloaded Natural Voice** deletes them.
 - Copilot descriptions are the only feature that sends text, only when you click the link.
 - No telemetry. Raw HTML in documents is never rendered or run.
 
@@ -158,7 +162,8 @@ the original narration. Don't use it for content you are not allowed to share.
 | `clearMarkdown.naturalVoice` | `af_heart` | Natural voice |
 | `clearMarkdown.naturalQuality` | `best` | `best` (326 MB) or `compact` (92 MB, slightly lower quality) |
 | `clearMarkdown.systemVoice` | | Operating-system voice for the system engine |
-| `clearMarkdown.rate` | `1` | Speed: 0.5 to 3 in quarter steps; pitch preserved |
+| `clearMarkdown.rate` | `1` | Speed, in quarter steps from 0.25 to 5; pitch preserved |
+| `clearMarkdown.expandedSpeeds` | `false` | Offer every quarter step from 0.25× to 5× instead of 0.5×, 1×, 1.5× and 2× |
 | `clearMarkdown.volume` | `100` | Volume in percent; the player's slider changes it |
 | `clearMarkdown.skipBackSeconds` / `skipForwardSeconds` | `10` / `30` | Skip lengths |
 | `clearMarkdown.tableMode` | `rows` | `rows` or `columns` |
