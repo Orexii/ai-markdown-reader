@@ -3,8 +3,12 @@
 src/**
 test/**
 out/**
+tools/**
+releases/**
 node_modules/**
+examples/*.wav
 tsconfig.json
 package-lock.json
 *.vsix
 .gitignore
+.npmrc

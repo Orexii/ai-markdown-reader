@@ -1,3 +1,7 @@
+The source code in this repository is licensed under the MIT License below.
+Packaged releases (.vsix) also bundle eSpeak NG, licensed GPL-3.0-or-later, so each packaged
+release as a whole is distributed under GPL-3.0-or-later. See THIRD_PARTY_NOTICES.md.
+
 MIT License
 
 Copyright (c) 2026 Orexii

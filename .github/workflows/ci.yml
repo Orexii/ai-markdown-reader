@@ -4,13 +4,17 @@ on:
   pull_request:
 permissions:
   contents: read
+env:
+  # The CPU runtime is enough; skip ONNX Runtime's optional GPU downloads.
+  ONNXRUNTIME_NODE_INSTALL: skip
 jobs:
   test:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -21,11 +25,29 @@ jobs:
       - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y espeak-ng
       - run: npm run check
+      - run: npx tsc
+      - uses: actions/cache@v4
+        with:
+          path: .model
+          key: kokoro-compact-c0c02b3299fd-af_heart-d583ccff3cdc
+      - run: node tools/fetch-model.mjs .model compact
       - run: npm test
         env:
           RUN_NATIVE_SPEECH: '1'
+          CMR_MODEL_DIR: .model
+      - run: node tools/smoke.mjs .model
+  package:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
       - run: npm run package
       - uses: actions/upload-artifact@v4
         with:
-          name: clear-markdown-reader-${{ runner.os }}
-          path: '*.vsix'
+          name: clear-markdown-reader-vsix
+          path: releases/*.vsix

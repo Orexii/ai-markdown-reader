@@ -1,5 +1,8 @@
 node_modules/
 out/
 dist/
+bin/
+releases/
 *.vsix
 .DS_Store
+.model/

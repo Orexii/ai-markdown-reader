@@ -6,6 +6,8 @@ title: Reader demonstration
 
 Ordinary prose should flow naturally. **Emphasis**, `inline identifiers`, and
 [useful links](https://example.com/a/very/long/address) should not sound like Markdown syntax.
+Technical names are spoken the way people say them: the ANF team ships `DataHarborConfig` to AKS
+VMs, tracks work in ADO and IcM, and runs `npm run build` before v1.2.3 goes out at 10:30.
 
 ## Bullet points
 
@@ -30,6 +32,9 @@ Ordinary prose should flow naturally. **Emphasis**, `inline identifiers`, and
 | Mail | Ready | Send the **draft** |
 | Search | Waiting | Rebuild the index |
 | Notes | | Keep the escaped pipe: A \| B |
+
+> [!TIP]
+> Click any word to read from there, or switch tables to column-by-column reading in the settings.
 
 ## Quotation and code
 

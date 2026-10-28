@@ -1,10 +1,10 @@
 {
   "name": "clear-markdown-reader",
   "displayName": "Clear Markdown Reader",
-  "description": "Read Markdown aloud with meaningful tables, flowing lists, local voices, and optional Copilot narration.",
-  "version": "0.1.0",
+  "description": "Listen to Markdown with a natural neural voice that runs on your computer: follow-along highlighting, real table and list narration, and podcast-style controls.",
+  "version": "0.2.0",
   "publisher": "orexii",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
     "url": "https://github.com/Orexii/clear-markdown-reader.git"
@@ -12,71 +12,441 @@
   "engines": {
     "vscode": "^1.100.0"
   },
-  "categories": ["Other"],
-  "keywords": ["markdown", "accessibility", "tts", "read aloud", "tables"],
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "markdown",
+    "read aloud",
+    "text to speech",
+    "tts",
+    "neural voice",
+    "kokoro",
+    "accessibility",
+    "tables",
+    "offline"
+  ],
   "main": "./dist/extension.js",
-  "extensionKind": ["ui"],
+  "extensionKind": [
+    "ui"
+  ],
   "capabilities": {
-    "untrustedWorkspaces": { "supported": true },
-    "virtualWorkspaces": { "supported": true }
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": {
+      "supported": true
+    }
   },
   "contributes": {
     "commands": [
-      { "command": "clearMarkdown.read", "title": "Clear Markdown: Read Aloud", "icon": "$(unmute)" },
-      { "command": "clearMarkdown.readSelection", "title": "Clear Markdown: Read Selection Aloud" }
+      {
+        "command": "clearMarkdown.read",
+        "title": "Read Aloud",
+        "category": "Clear Markdown",
+        "icon": "$(unmute)"
+      },
+      {
+        "command": "clearMarkdown.readFromTop",
+        "title": "Read Aloud from the Start",
+        "category": "Clear Markdown"
+      },
+      {
+        "command": "clearMarkdown.readFromCursor",
+        "title": "Read Aloud from Cursor",
+        "category": "Clear Markdown"
+      },
+      {
+        "command": "clearMarkdown.readSelection",
+        "title": "Read Selection Aloud",
+        "category": "Clear Markdown"
+      },
+      {
+        "command": "clearMarkdown.togglePlay",
+        "title": "Play or Pause Reading",
+        "category": "Clear Markdown"
+      },
+      {
+        "command": "clearMarkdown.skipBack",
+        "title": "Skip Back",
+        "category": "Clear Markdown"
+      },
+      {
+        "command": "clearMarkdown.skipForward",
+        "title": "Skip Forward",
+        "category": "Clear Markdown"
+      },
+      {
+        "command": "clearMarkdown.previousSentence",
+        "title": "Previous Sentence",
+        "category": "Clear Markdown"
+      },
+      {
+        "command": "clearMarkdown.nextSentence",
+        "title": "Next Sentence",
+        "category": "Clear Markdown"
+      },
+      {
+        "command": "clearMarkdown.previousParagraph",
+        "title": "Previous Paragraph",
+        "category": "Clear Markdown"
+      },
+      {
+        "command": "clearMarkdown.nextParagraph",
+        "title": "Next Paragraph",
+        "category": "Clear Markdown"
+      },
+      {
+        "command": "clearMarkdown.faster",
+        "title": "Read Faster",
+        "category": "Clear Markdown"
+      },
+      {
+        "command": "clearMarkdown.slower",
+        "title": "Read Slower",
+        "category": "Clear Markdown"
+      },
+      {
+        "command": "clearMarkdown.showReader",
+        "title": "Show Reader",
+        "category": "Clear Markdown"
+      },
+      {
+        "command": "clearMarkdown.installNaturalVoice",
+        "title": "Download Natural Voice",
+        "category": "Clear Markdown"
+      },
+      {
+        "command": "clearMarkdown.removeNaturalVoice",
+        "title": "Remove Downloaded Natural Voice",
+        "category": "Clear Markdown"
+      }
     ],
     "menus": {
       "editor/title": [
-        { "command": "clearMarkdown.read", "when": "editorLangId == markdown", "group": "navigation" }
+        {
+          "command": "clearMarkdown.read",
+          "when": "editorLangId == markdown",
+          "group": "navigation"
+        }
       ],
       "editor/context": [
-        { "command": "clearMarkdown.readSelection", "when": "editorLangId == markdown && editorHasSelection", "group": "navigation" }
+        {
+          "command": "clearMarkdown.readSelection",
+          "when": "editorLangId == markdown && editorHasSelection",
+          "group": "navigation@1"
+        },
+        {
+          "command": "clearMarkdown.readFromCursor",
+          "when": "editorLangId == markdown && !editorHasSelection",
+          "group": "navigation@1"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "clearMarkdown.read",
+          "when": "resourceLangId == markdown",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "clearMarkdown.togglePlay",
+          "when": "clearMarkdown.playerActive || editorLangId == markdown"
+        },
+        {
+          "command": "clearMarkdown.skipBack",
+          "when": "clearMarkdown.playerActive"
+        },
+        {
+          "command": "clearMarkdown.skipForward",
+          "when": "clearMarkdown.playerActive"
+        },
+        {
+          "command": "clearMarkdown.previousSentence",
+          "when": "clearMarkdown.playerActive"
+        },
+        {
+          "command": "clearMarkdown.nextSentence",
+          "when": "clearMarkdown.playerActive"
+        },
+        {
+          "command": "clearMarkdown.previousParagraph",
+          "when": "clearMarkdown.playerActive"
+        },
+        {
+          "command": "clearMarkdown.nextParagraph",
+          "when": "clearMarkdown.playerActive"
+        },
+        {
+          "command": "clearMarkdown.faster",
+          "when": "clearMarkdown.playerActive"
+        },
+        {
+          "command": "clearMarkdown.slower",
+          "when": "clearMarkdown.playerActive"
+        },
+        {
+          "command": "clearMarkdown.showReader",
+          "when": "clearMarkdown.playerActive"
+        },
+        {
+          "command": "clearMarkdown.read",
+          "when": "editorLangId == markdown"
+        },
+        {
+          "command": "clearMarkdown.readFromTop",
+          "when": "editorLangId == markdown"
+        },
+        {
+          "command": "clearMarkdown.readFromCursor",
+          "when": "editorLangId == markdown"
+        },
+        {
+          "command": "clearMarkdown.readSelection",
+          "when": "editorLangId == markdown && editorHasSelection"
+        }
       ]
     },
+    "keybindings": [
+      {
+        "command": "clearMarkdown.readFromCursor",
+        "key": "ctrl+alt+enter",
+        "mac": "cmd+alt+enter",
+        "when": "editorTextFocus && editorLangId == markdown && !findWidgetVisible"
+      },
+      {
+        "command": "clearMarkdown.togglePlay",
+        "key": "ctrl+alt+p",
+        "mac": "ctrl+cmd+p",
+        "when": "clearMarkdown.playerActive"
+      },
+      {
+        "command": "clearMarkdown.skipBack",
+        "key": "ctrl+alt+,",
+        "mac": "ctrl+cmd+,",
+        "when": "clearMarkdown.playerActive"
+      },
+      {
+        "command": "clearMarkdown.skipForward",
+        "key": "ctrl+alt+.",
+        "mac": "ctrl+cmd+.",
+        "when": "clearMarkdown.playerActive"
+      }
+    ],
+    "colors": [
+      {
+        "id": "clearMarkdown.readingBackground",
+        "description": "Background of the source lines being read aloud.",
+        "defaults": {
+          "dark": "#3794ff2e",
+          "light": "#0066bf21",
+          "highContrast": "#3794ff40",
+          "highContrastLight": "#0066bf30"
+        }
+      }
+    ],
     "configuration": {
       "title": "Clear Markdown Reader",
       "properties": {
-        "clearMarkdown.tableMode": {
+        "clearMarkdown.engine": {
           "type": "string",
-          "enum": ["rows", "columns"],
-          "default": "rows",
-          "description": "Read each table row with its column labels, or read one column at a time. Applied when opening a reader."
+          "enum": [
+            "natural",
+            "system"
+          ],
+          "default": "natural",
+          "enumDescriptions": [
+            "Natural neural voice (Kokoro) that runs on this computer after a one-time download.",
+            "Voices installed in the operating system."
+          ],
+          "description": "Which speech engine reads documents."
         },
-        "clearMarkdown.codeBlocks": {
+        "clearMarkdown.naturalVoice": {
           "type": "string",
-          "enum": ["announce", "read"],
-          "default": "announce",
-          "description": "Announce fenced code blocks and their line counts, or read their contents."
+          "enum": [
+            "af_heart",
+            "af_bella",
+            "af_nicole",
+            "bf_emma",
+            "am_michael",
+            "am_fenrir",
+            "am_puck",
+            "af_aoede",
+            "af_kore",
+            "af_sarah",
+            "bm_george",
+            "bm_fable",
+            "bf_isabella",
+            "af_alloy",
+            "af_nova",
+            "af_sky",
+            "bm_lewis",
+            "af_jessica",
+            "af_river",
+            "am_echo",
+            "am_eric",
+            "am_liam",
+            "am_onyx",
+            "bf_alice",
+            "bf_lily",
+            "bm_daniel",
+            "am_santa",
+            "am_adam"
+          ],
+          "enumDescriptions": [
+            "Heart: American female, grade A (recommended)",
+            "Bella: American female, grade A-",
+            "Nicole: American female, grade B-",
+            "Emma: British female, grade B-",
+            "Michael: American male, grade C+",
+            "Fenrir: American male, grade C+",
+            "Puck: American male, grade C+",
+            "Aoede: American female, grade C+",
+            "Kore: American female, grade C+",
+            "Sarah: American female, grade C+",
+            "George: British male, grade C",
+            "Fable: British male, grade C",
+            "Isabella: British female, grade C",
+            "Alloy: American female, grade C",
+            "Nova: American female, grade C",
+            "Sky: American female, grade C-",
+            "Lewis: British male, grade D+",
+            "Jessica: American female, grade D",
+            "River: American female, grade D",
+            "Echo: American male, grade D",
+            "Eric: American male, grade D",
+            "Liam: American male, grade D",
+            "Onyx: American male, grade D",
+            "Alice: British female, grade D",
+            "Lily: British female, grade D",
+            "Daniel: British male, grade D",
+            "Santa: American male, grade D-",
+            "Adam: American male, grade F+"
+          ],
+          "default": "af_heart",
+          "description": "Natural voice. Grades are the model authors' quality estimates; Heart is the best."
+        },
+        "clearMarkdown.naturalQuality": {
+          "type": "string",
+          "enum": [
+            "best",
+            "compact"
+          ],
+          "default": "best",
+          "enumDescriptions": [
+            "Full-precision model (326 MB download): best sound.",
+            "Quantized model (92 MB download): smaller and slightly faster, with a small loss of quality."
+          ],
+          "description": "Which natural voice model to download and use."
+        },
+        "clearMarkdown.systemVoice": {
+          "type": "string",
+          "default": "",
+          "description": "Operating-system voice used by the system engine. Empty uses the default voice."
+        },
+        "clearMarkdown.voice": {
+          "type": "string",
+          "default": "",
+          "deprecationMessage": "Replaced by clearMarkdown.systemVoice.",
+          "markdownDeprecationMessage": "Replaced by `#clearMarkdown.systemVoice#`."
         },
         "clearMarkdown.rate": {
           "type": "number",
           "default": 1,
           "minimum": 0.5,
-          "maximum": 2,
-          "description": "Initial playback speed. Can also be adjusted in the reader."
+          "maximum": 3,
+          "description": "Playback speed. Pitch is preserved."
         },
-        "clearMarkdown.voice": {
+        "clearMarkdown.skipBackSeconds": {
+          "type": "number",
+          "default": 10,
+          "minimum": 1,
+          "maximum": 120,
+          "description": "Seconds to go back with the back button, \u2190 or J."
+        },
+        "clearMarkdown.skipForwardSeconds": {
+          "type": "number",
+          "default": 30,
+          "minimum": 1,
+          "maximum": 300,
+          "description": "Seconds to go forward with the forward button, \u2192 or L."
+        },
+        "clearMarkdown.tableMode": {
           "type": "string",
-          "default": "",
-          "description": "Preferred installed system voice. Use the reader's voice picker to save a choice."
+          "enum": [
+            "rows",
+            "columns"
+          ],
+          "default": "rows",
+          "enumDescriptions": [
+            "Each row with its column names, e.g. \"Mail. State: Ready.\"",
+            "One column at a time, naming each row."
+          ],
+          "description": "How tables are read."
+        },
+        "clearMarkdown.codeBlocks": {
+          "type": "string",
+          "enum": [
+            "announce",
+            "read",
+            "skip"
+          ],
+          "default": "announce",
+          "enumDescriptions": [
+            "Say the language and line count.",
+            "Read the code line by line.",
+            "Show the code without speaking it."
+          ],
+          "description": "How fenced code blocks are read."
+        },
+        "clearMarkdown.followInEditor": {
+          "type": "boolean",
+          "default": true,
+          "description": "Highlight the lines being read in the Markdown editor and keep them in view."
+        },
+        "clearMarkdown.highlightWords": {
+          "type": "boolean",
+          "default": true,
+          "description": "Highlight each word as it is spoken, as well as the sentence."
+        },
+        "clearMarkdown.pronunciations": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "string"
+          },
+          "markdownDescription": "How to say particular words, e.g. `{ \"Kusto\": \"kuss toe\", \"nginx\": \"engine x\", \"Rakeem\": \"/\u0279\u0251\u02d0k\u02c8i\u02d0m/\" }`. Values in slashes are IPA phonemes (natural voice only). Workspace settings can share a dictionary with your team."
+        },
+        "clearMarkdown.threads": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 32,
+          "description": "CPU threads for the natural voice. 0 picks half the processor threads, up to 8."
         }
       }
     }
   },
   "scripts": {
     "vscode:prepublish": "npm run check && npm run build",
-    "build": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=dist/extension.js",
+    "build": "node tools/build.mjs",
     "check": "tsc --noEmit",
-    "test": "tsc && node --test out/test/*.test.js",
-    "package": "vsce package"
+    "test": "node -e \"require('fs').rmSync('out',{recursive:true,force:true})\" && tsc && node --test out/test/*.test.js",
+    "package": "node tools/package.mjs"
   },
   "dependencies": {
-    "markdown-it": "^14.1.0"
+    "markdown-it": "^14.1.0",
+    "onnxruntime-node": "1.23.2",
+    "phonemizer": "1.2.1"
   },
   "overrides": {
     "@vscode/vsce": {
       "@azure/identity": "4.13.0",
       "uuid": "^11.1.1"
+    },
+    "onnxruntime-node": {
+      "adm-zip": "^0.6.1"
     }
   },
   "devDependencies": {
@@ -87,6 +457,7 @@
     "@vscode/vsce": "^3.6.0",
     "esbuild": "^0.25.0",
     "jsdom": "^26.0.0",
+    "playwright-core": "1.64.1",
     "typescript": "^5.8.0"
   }
 }
