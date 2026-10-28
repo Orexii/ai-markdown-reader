@@ -17,7 +17,7 @@ export class SystemEngine implements SpeechEngine {
     const words = new Map(dictionary);
     const results: AudioSegment[] = [];
     for (const utterance of utterances) {
-      const spoken = utterance.words.map(word => pronounceAsText(word.text, words));
+      const spoken = utterance.words.map((word, k) => pronounceAsText(word.text, words, utterance.words[k - 1]?.text));
       const text = spoken.map((value, k) => value + utterance.words[k]!.sep).join('').trim();
       const file = path.join(this.directory, `${randomUUID()}.wav`);
       try {

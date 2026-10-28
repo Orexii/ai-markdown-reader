@@ -27,6 +27,9 @@ export class PreviewPanels implements vscode.CustomTextEditorProvider, vscode.Di
   private readonly readRequests = new vscode.EventEmitter<{ uri: vscode.Uri; line: number; character: number }>();
   /** The listener asked to read from a place in a preview. */
   readonly onDidRequestRead = this.readRequests.event;
+  private readonly commandRequests = new vscode.EventEmitter<{ uri: vscode.Uri; action: string }>();
+  /** The listener pressed a player key (for example → for the next paragraph) in a preview. */
+  readonly onDidRequestCommand = this.commandRequests.event;
 
   constructor(private readonly extensionUri: vscode.Uri, private readonly log: (message: string) => void) {}
 
@@ -71,6 +74,9 @@ export class PreviewPanels implements vscode.CustomTextEditorProvider, vscode.Di
         break;
       case 'readFrom':
         this.readRequests.fire(at());
+        break;
+      case 'command':
+        if (typeof message.action === 'string') this.commandRequests.fire({ uri: entry.document.uri, action: message.action });
         break;
       case 'contextTarget':
         this.context = at();
@@ -184,6 +190,7 @@ export class PreviewPanels implements vscode.CustomTextEditorProvider, vscode.Di
 
   dispose(): void {
     this.readRequests.dispose();
+    this.commandRequests.dispose();
     for (const entry of [...this.panels]) entry.panel.dispose();
   }
 }

@@ -3,6 +3,9 @@
   'use strict';
   const vscode = acquireVsCodeApi();
   const $ = id => document.getElementById(id);
+  const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
+  /** The modifier that, with ← or →, skips by seconds: Ctrl (Option on macOS, where Ctrl+← switches desktops). */
+  const JUMP = IS_MAC ? 'Option' : 'Ctrl';
   /** The short speed list, and every quarter step from 0.25× to 5× (the same lists as src/speeds.ts). */
   const BASIC_SPEEDS = [0.5, 1, 1.5, 2];
   const ALL_SPEEDS = Array.from({ length: 20 }, (_, i) => (i + 1) / 4);
@@ -318,6 +321,7 @@
 
   function sentence(step) {
     if (step < 0 && offsetNow() > 1.5) return go(index, 0);
+    if (step > 0 && index >= utterances.length - 1) return flash('This is the last sentence');
     go(index + step, 0);
   }
 
@@ -326,6 +330,7 @@
     if (step > 0) {
       const next = utterances.findIndex((u, i) => i > index && u.b !== block);
       if (next >= 0) go(next, 0);
+      else flash('This is the last paragraph');
       return;
     }
     let start = index;
@@ -336,6 +341,21 @@
       while (start > 0 && utterances[start - 1].b === previous) start--;
     }
     go(start, 0);
+  }
+
+  /** Moves by section: to the next heading, or back to the start of this section (then the one before). */
+  function moveSection(step) {
+    const starts = blocks.filter(block => block.k === 'heading' && block.f >= 0).map(block => block.f);
+    if (step > 0) {
+      const next = starts.find(start => start > index);
+      if (next !== undefined) go(next, 0);
+      else flash('This is the last section');
+      return;
+    }
+    const current = starts.filter(start => start <= index).pop();
+    if (current !== undefined && (current < index || offsetNow() > 1.5)) return go(current, 0);
+    const previous = starts.filter(start => start < (current ?? index)).pop();
+    go(previous ?? 0, 0);
   }
 
   function startTicking() {
@@ -848,9 +868,9 @@
     $('follow').checked = settings.followInEditor;
     const back = settings.skipBack;
     const forward = settings.skipForward;
-    $('back').title = `Back ${back} seconds (← or J)`;
+    $('back').title = `Back ${back} seconds (J or ${JUMP}+←)`;
     $('back').setAttribute('aria-label', `Back ${back} seconds`);
-    $('forward').title = `Forward ${forward} seconds (→ or L)`;
+    $('forward').title = `Forward ${forward} seconds (L or ${JUMP}+→)`;
     $('forward').setAttribute('aria-label', `Forward ${forward} seconds`);
     for (const [id, value] of [['back', back], ['forward', forward]]) {
       const label = $(id).querySelector('text');
@@ -983,6 +1003,7 @@
       skipBack: () => seekTo(now() - settings.skipBack), skipForward: () => seekTo(now() + settings.skipForward),
       previousSentence: () => sentence(-1), nextSentence: () => sentence(1),
       previousParagraph: () => paragraph(-1), nextParagraph: () => paragraph(1),
+      previousSection: () => moveSection(-1), nextSection: () => moveSection(1),
       faster: () => stepRate(1), slower: () => stepRate(-1),
       setRate: () => setRate(message.value),
       top: () => go(0, 0, true),
@@ -1085,17 +1106,21 @@
       return;
     }
     if (target instanceof Element && target.closest('select, textarea, input:not([type=range]):not([type=checkbox]), #settings')) return;
-    if (keyEvent.ctrlKey || keyEvent.metaKey || keyEvent.altKey) return;
+    // VS Code also runs its own shortcut for every key pressed here, so only Shift and the platform's
+    // word-jump modifier are used: Alt+← is Go Back in VS Code on Windows and Linux.
+    const jump = keyEvent.ctrlKey || (IS_MAC && keyEvent.altKey);
+    if (keyEvent.metaKey || ((keyEvent.ctrlKey || keyEvent.altKey) && !jump)) return;
     const onButton = target instanceof Element && target.closest('button');
     const back = () => seekTo(now() - settings.skipBack);
     const forward = () => seekTo(now() + settings.skipForward);
-    const actions = {
+    const actions = jump ? { ArrowLeft: back, ArrowRight: forward } : {
       ' ': () => (onButton ? false : toggle()),
       k: toggle, K: toggle, j: back, J: back, l: forward, L: forward,
-      ArrowLeft: () => (keyEvent.shiftKey ? sentence(-1) : back()),
-      ArrowRight: () => (keyEvent.shiftKey ? sentence(1) : forward()),
-      ArrowUp: () => (keyEvent.shiftKey ? paragraph(-1) : stepVolume(5)),
-      ArrowDown: () => (keyEvent.shiftKey ? paragraph(1) : stepVolume(-5)),
+      ArrowLeft: () => (keyEvent.shiftKey ? sentence(-1) : paragraph(-1)),
+      ArrowRight: () => (keyEvent.shiftKey ? sentence(1) : paragraph(1)),
+      ArrowUp: () => (keyEvent.shiftKey ? moveSection(-1) : stepVolume(5)),
+      ArrowDown: () => (keyEvent.shiftKey ? moveSection(1) : stepVolume(-5)),
+      PageUp: () => moveSection(-1), PageDown: () => moveSection(1),
       m: toggleMute, M: toggleMute,
       ',': () => sentence(-1), '.': () => sentence(1),
       '[': () => paragraph(-1), ']': () => paragraph(1),

@@ -7,7 +7,7 @@
     "color": "#1c2742",
     "theme": "dark"
   },
-  "version": "0.6.0",
+  "version": "0.7.0",
   "publisher": "orexii",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -145,6 +145,16 @@
       {
         "command": "clearMarkdown.nextParagraph",
         "title": "Next Paragraph",
+        "category": "AI Markdown Reader"
+      },
+      {
+        "command": "clearMarkdown.previousSection",
+        "title": "Previous Section",
+        "category": "AI Markdown Reader"
+      },
+      {
+        "command": "clearMarkdown.nextSection",
+        "title": "Next Section",
         "category": "AI Markdown Reader"
       },
       {
@@ -302,6 +312,14 @@
         },
         {
           "command": "clearMarkdown.nextParagraph",
+          "when": "clearMarkdown.playerActive"
+        },
+        {
+          "command": "clearMarkdown.previousSection",
+          "when": "clearMarkdown.playerActive"
+        },
+        {
+          "command": "clearMarkdown.nextSection",
           "when": "clearMarkdown.playerActive"
         },
         {

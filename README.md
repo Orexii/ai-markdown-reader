@@ -64,7 +64,9 @@ slower, voice, speed), so you can assign your own keys.
 You can also listen while looking at the rendered Markdown. The **Read Aloud Preview** looks like VS
 Code's Markdown preview and highlights the sentence and the spoken word as they are read, scrolling
 along (with the same **Back to reading** behavior). Double-click any word, or right-click and choose
-**Read Aloud from Here**, to start reading there. Open it with **AI Markdown Reader: Open Read Aloud
+**Read Aloud from Here**, to start reading there. While its file is being read, the player's keys work
+in the preview too (← / → by paragraph, Shift+← / Shift+→ by sentence and so on), while ↑ / ↓, Space and
+Page Up / Page Down keep scrolling the page. Open it with **AI Markdown Reader: Open Read Aloud
 Preview** (or **…to the Side**), from the editor's **Reopen Editor With…** list, or from the Explorer
 context menu. It updates as you edit.
 
@@ -87,11 +89,26 @@ Previous paragraph goes back to the start of the current paragraph first, like t
 button of a music player. The speed menu offers 0.5×, 1×, 1.5× and 2×; choose **More speeds…** at
 the bottom of it (or turn on **More speeds** in the settings) for every quarter step from 0.25× to 5×.
 On the right is a thin **vertical volume slider** with the speaker under it: drag it, click a spot or
-scroll over it, and click the speaker to mute. With the section focused, Space or K plays or pauses,
-← / → or J / L skip, Shift+← / Shift+→ move by sentence, Shift+↑ / Shift+↓ by paragraph, ↑ / ↓ change
-the volume, M mutes, and - / + change speed. If the sidebar is too narrow for one row, speed and
+scroll over it, and click the speaker to mute. If the sidebar is too narrow for one row, speed and
 settings move to a second row. You can drag the section anywhere, for example into the panel or the
 secondary side bar.
+
+Click the section to use these keys. The arrows move through the text, like the |◀ ▶| buttons; a
+modifier changes the step:
+
+| Key | Action |
+| --- | --- |
+| ← / → | Previous / next paragraph (a table counts as one paragraph) |
+| Shift+← / Shift+→ | Previous / next sentence (in a table, row by row) |
+| Ctrl+← / Ctrl+→ (Option on macOS) | Back 10 / forward 30 seconds; J / L do the same |
+| Shift+↑ / Shift+↓, Page Up / Page Down | Previous / next section (heading) |
+| ↑ / ↓ | Volume; M mutes |
+| Space or K | Play or pause |
+| - / + | Slower / faster |
+| Home | Back to the start |
+
+Previous paragraph, sentence or section goes back to the start of the current one first, like the
+previous-track button of a music player. Alt+← is not used because it is **Go Back** in VS Code.
 
 ## How documents are read
 
@@ -210,6 +227,11 @@ npm run package                                     # releases/*.vsix for all si
 hidden and checks that the editor highlights the word being spoken, that playback never stalls more
 than once, and that every track handoff is gapless. CI runs the unit and real-model tests and
 the bundled-engine smoke test on Windows, macOS and Linux (x64 and Arm), then packages every platform.
+
+For a hands-on check, [examples/wagyu.md](examples/wagyu.md) is a Shiba-themed master test file that
+uses every Markdown feature the reader supports (the unit tests read it too), and
+[examples/wagyu-checklist.md](examples/wagyu-checklist.md) walks through every control and what you
+should hear and see.
 
 ## License
 

@@ -5,6 +5,7 @@
   const content = document.getElementById('content');
   const pill = document.getElementById('back-to-reading');
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
   const highlights = typeof CSS !== 'undefined' && CSS.highlights && typeof Highlight === 'function' ? CSS.highlights : null;
 
   /** Rendered words in document order, with their source positions. */
@@ -214,6 +215,30 @@
       return;
     }
     post({ type: 'openLink', href });
+  });
+
+  // While this file is being read, the player's keys work here too. ↑ / ↓, Space and Page Up / Down
+  // keep scrolling the page, as in any preview.
+  document.addEventListener('keydown', keyEvent => {
+    if (!position || keyEvent.defaultPrevented || keyEvent.metaKey) return;
+    // Alt+← is Go Back in VS Code on Windows and Linux, so the seconds skip uses Ctrl (Option on macOS).
+    const jump = keyEvent.ctrlKey || (IS_MAC && keyEvent.altKey);
+    if ((keyEvent.ctrlKey || keyEvent.altKey) && !jump) return;
+    const shift = keyEvent.shiftKey;
+    const actions = jump ? { ArrowLeft: 'skipBack', ArrowRight: 'skipForward' } : {
+      ArrowLeft: shift ? 'previousSentence' : 'previousParagraph',
+      ArrowRight: shift ? 'nextSentence' : 'nextParagraph',
+      ArrowUp: shift ? 'previousSection' : undefined,
+      ArrowDown: shift ? 'nextSection' : undefined,
+      k: 'togglePlay', K: 'togglePlay', j: 'skipBack', J: 'skipBack', l: 'skipForward', L: 'skipForward',
+      ',': 'previousSentence', '.': 'nextSentence', '[': 'previousParagraph', ']': 'nextParagraph',
+      '-': 'slower', _: 'slower', '=': 'faster', '+': 'faster'
+    };
+    const action = actions[keyEvent.key];
+    if (!action) return;
+    keyEvent.preventDefault();
+    following = true;
+    post({ type: 'command', action });
   });
 
   window.addEventListener('message', ({ data }) => {

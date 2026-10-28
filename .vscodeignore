@@ -13,3 +13,5 @@ package-lock.json
 .gitignore
 .npmrc
 art/**
+examples/wagyu*.md
+examples/images/**

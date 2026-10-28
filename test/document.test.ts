@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { buildDocument, textWords, utteranceText, type DocumentOptions, type ReaderDocument, type SourceRange } from '../src/document';
+import { KEY_NAMES } from '../src/engine/pronounce';
 
 const spoken = (markdown: string, options?: Partial<DocumentOptions>) => buildDocument(markdown, options).utterances.map(utteranceText);
 
@@ -21,8 +22,10 @@ function assertWordsInSource(markdown: string, doc: ReaderDocument): void {
   for (const utterance of doc.utterances) {
     for (const word of utterance.words) {
       if (!word.range) continue;
-      const text = slice(markdown, word.range)!;
-      const matches = text.includes(word.text) || word.text.includes(text) || text === word.text.replace(/\s/g, '') || word.text === 'Column';
+      // Markdown escapes (\*) are part of the source but not of the spoken word.
+      const text = slice(markdown, word.range)!.replace(/\\(?=\S)/g, '');
+      const matches = text.includes(word.text) || word.text.includes(text) || text === word.text.replace(/\s/g, '') || word.text === 'Column' ||
+        KEY_NAMES[text] === word.text;
       assert.ok(matches, `"${word.text}" points at "${text}"`);
     }
   }
@@ -201,4 +204,63 @@ test('the demonstration maps every spoken word to its source with no raw Markdow
 
 test('empty documents produce nothing to read', () => {
   assert.deepEqual(buildDocument(' \n---\n').utterances, []);
+});
+
+test('the Wagyu field guide (examples/wagyu.md) exercises every feature and maps every word', () => {
+  const markdown = readFileSync('examples/wagyu.md', 'utf8');
+  const doc = buildDocument(markdown);
+  assertWordsInSource(markdown, doc);
+  const texts = doc.utterances.map(utteranceText);
+  const all = texts.join(' ');
+  const has = (text: string) => assert.ok(texts.includes(text), `missing "${text}"`);
+  // Never read: front matter, comments, raw HTML blocks, link targets, Markdown syntax.
+  assert.ok(!/purpose|Check:|This comment|treats were|must never run|https?:|\*\*|`|\]\(|\[!/.test(all), all);
+  has('The Wagyu Field Guide.');
+  has('Image: Wagyu, a red Shiba Inu, reading a Markdown page aloud.');
+  has('1. Meet Wagyu.');
+  // Line breaks: one phrase per line.
+  has('The sunny spot by the window.');
+  has('Under the desk, behind the cables.');
+  // The table.
+  has('Table with 7 rows. Columns: Fact, Wagyu, Typical Shiba Inu.');
+  has('Weight. Wagyu: empty. Typical Shiba Inu: 8–11 kg.');
+  has('Motto. Wagyu: if (treat) sit();. Typical Shiba Inu: Stubborn independent.');
+  // Quotes, alerts, lists and tasks.
+  has('Quote: Wagyu preferred a long, theatrical sigh.');
+  for (const alert of ['Note:', 'Tip:', 'Important:', 'Warning:', 'Caution:']) assert.ok(texts.some(text => text.startsWith(alert)), alert);
+  has('6. Wake up at 6:30 AM and stare at the bed until someone notices.');
+  has('Kibble with a spoonful of pumpkin.');
+  has('10. Zoomies, at exactly 8:00 PM.');
+  has('Completed: Yellow harness.');
+  has('Not completed: Empty water bottle, for chewing.');
+  has('Sit: reliable, unless a squirrel was involved.');
+  // Code blocks are announced.
+  for (const code of ['Code block, JavaScript, 4 lines.', 'Code block, Python, 4 lines.', 'Code block, shell, 1 line.', 'Code block, JSON, 1 line.',
+    'Code block, Kusto query, 3 lines.', 'Diagram, 2 lines.', 'Code block, 3 lines.', 'Code block, 1 line.']) has(code);
+  // Images, links, keys and edge cases.
+  has('Image.');
+  has('A reference-style image: Image: Wagyu by reference.');
+  has('An autolink: akc.org.');
+  has('A bare web address: en.wikipedia.org.');
+  has('A reference link: Shiba Inu on Wikipedia.');
+  has('Press Space to pause, or right arrow to skip to the next paragraph.');
+  has('Level six: toe beans.');
+  has('Another setext heading.');
+  has('Escaped characters stay literal: *not italic*, # not a heading, and 2 * 3 = 6.');
+  has('Emoji are shown but not read: Wagyu loved bones and sweet potatoes.');
+  has('Wagyu would like a treat now.');
+  const long = texts.findIndex(text => text.startsWith('A very long sentence'));
+  assert.ok(texts[long + 1]!.startsWith('negotiated') && texts[long + 2]!.startsWith('and then'), 'the long sentence is split at commas');
+  // Sections for Shift+↑ / Shift+↓: every heading starts somewhere.
+  assert.equal(doc.blocks.filter(block => block.kind === 'heading' && block.first >= 0).length, 19, '19 headings, including two setext ones');
+});
+
+test('<kbd> arrows are key names, hard line breaks are phrases, and * between numbers is multiplication', () => {
+  assert.deepEqual(spoken('Press <kbd>→</kbd> or <kbd>Shift</kbd>+<kbd>←</kbd>.'), ['Press right arrow or Shift+ left arrow.']);
+  assert.deepEqual(spoken('Settings → Extensions.'), ['Settings → Extensions.'], 'outside <kbd> an arrow keeps its meaning');
+  assert.deepEqual(spoken('One  \nTwo\\\nThree<br>Four'), ['One.', 'Two.', 'Three.', 'Four.']);
+  assert.deepEqual(spoken('| A |\n| - |\n| x<br>y |'), ['Table with 1 row. Columns: A.', 'x, y.']);
+  const words = buildDocument('2 * 3 = 6, but *this* is emphasis and a * star alone is not.').utterances[0]!.words.map(word => word.text);
+  assert.deepEqual(words.slice(0, 5), ['2', '*', '3', '=', '6']);
+  assert.equal(words.filter(word => word === '*').length, 1);
 });

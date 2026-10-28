@@ -64,3 +64,34 @@ test('system voices get spaced letters instead of phonemes', () => {
   assert.equal(pronounceAsText('ANFObservabilityDB'), 'A N F Observability D B');
   assert.equal(pronounceAsText('$5'), '5 dollars');
 });
+
+test('percentages and units after a number are said in full', () => {
+  assert.equal(normalizeNumber('100%'), '100 percent');
+  assert.equal(normalizeNumber('12.5%'), '12 point 5 percent');
+  assert.equal(normalizeNumber('8kg'), '8 kilograms');
+  assert.equal(normalizeNumber('1GB'), '1 gigabyte');
+  assert.equal(normalizeNumber('100GiB'), '100 gibibytes');
+  assert.equal(normalizeNumber('2.5GHz'), '2 point 5 gigahertz');
+  assert.equal(normalizeNumber('80s'), undefined, 'a decade, not 80 seconds');
+  assert.equal(normalizeNumber('5G'), undefined, 'a network, not 5 grams');
+  const after = (word: string, previous: string) => pronounceAsText(word, new Map(), previous);
+  assert.equal(after('kg', '8–11'), 'kilograms');
+  assert.equal(after('lb', '17–23'), 'pounds', 'a range is plural');
+  assert.equal(after('kg', '1'), 'kilogram');
+  assert.equal(after('TiB', '4'), 'tebibytes');
+  assert.equal(after('ms', '250'), 'milliseconds');
+  assert.equal(after('kg', 'heavy'), 'kg', 'only after a number');
+  assert.equal(after('in', '1'), 'in', '"1 in 5" is not inches');
+  assert.equal(pronounceAsText('kg', new Map([['kg', 'keg']]), '3'), 'keg', 'the dictionary wins');
+});
+
+test('keyboard shortcuts name their keys, and arrows inside sentences are words', () => {
+  assert.equal(pronounceAsText('Shift+←'), 'Shift plus left arrow');
+  assert.equal(pronounceAsText('Ctrl+→'), 'control plus right arrow');
+  assert.equal(pronounceAsText('Ctrl+Alt+P'), 'control plus Alt plus P');
+  assert.equal(pronounceAsText('Cmd+Shift+↓'), 'command plus Shift plus down arrow');
+  assert.equal(pronounceAsText('Esc'), 'escape');
+  assert.equal(pronounceAsText('→'), 'to', 'as in "Settings → Extensions"');
+  assert.equal(pronounceAsText('*'), 'times', 'kept only between numbers by the narration');
+  assert.equal(pronounceAsText('C++'), 'C plus plus');
+});

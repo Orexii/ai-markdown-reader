@@ -1,5 +1,6 @@
 import MarkdownIt from 'markdown-it';
 import type Token from 'markdown-it/lib/token.mjs';
+import { KEY_NAMES } from './engine/pronounce';
 
 export type BlockKind = 'heading' | 'paragraph' | 'item' | 'table' | 'code' | 'html';
 
@@ -83,6 +84,8 @@ export function utteranceText(utterance: Utterance): string {
 function normalizeSeparator(text: string, final: boolean): string {
   const marks = (text.replace(/(^|\s)[–-]+(?=\s|$)/g, '$1—').match(SPOKEN_SEPARATOR) ?? []).join('');
   if (final) return /[.!?]/.test(marks) ? marks : `${marks.replace(/[,;:—]+$/, '')}.`;
+  // A line break that does not end a sentence (for example in a table cell) is a short pause.
+  if (!marks && text.includes('\n')) return ', ';
   return marks ? `${marks} ` : ' ';
 }
 
@@ -218,18 +221,25 @@ interface Inline { display: string; owner: number[]; runs: Run[]; units: Unit[] 
 function collectRuns(children: Token[]): Run[] {
   const runs: Run[] = [];
   let autolink = false;
+  let key = false;
   for (const child of children) {
     switch (child.type) {
       case 'text':
         if (!child.content) break;
         if (autolink) runs.push({ text: child.content, spoken: spokenForm(child.content), atomic: true });
+        // Inside <kbd>, an arrow is a key: "right arrow", not "to".
+        else if (key && KEY_NAMES[child.content.trim()]) runs.push({ text: child.content, spoken: KEY_NAMES[child.content.trim()], atomic: true });
         else runs.push({ text: child.content });
         break;
       // Inline code is one highlighted unit even when it contains several words.
       case 'code_inline': runs.push({ text: child.content, atomic: true, parts: true }); break;
-      case 'softbreak': case 'hardbreak': runs.push({ text: ' ' }); break;
+      case 'softbreak': runs.push({ text: ' ' }); break;
+      // A hard line break (two trailing spaces, a backslash or <br>) ends a phrase, so it gets a pause.
+      case 'hardbreak': runs.push({ text: '\n' }); break;
       case 'html_inline':
-        if (/^<br\s*\/?>$/i.test(child.content)) runs.push({ text: ' ' });
+        if (/^<br\s*\/?>$/i.test(child.content)) runs.push({ text: '\n' });
+        else if (/^<kbd[\s>]/i.test(child.content)) key = true;
+        else if (/^<\/kbd\s*>$/i.test(child.content)) key = false;
         break;
       case 'image': {
         const alt = child.content.replace(/\s+/g, ' ').trim();
@@ -270,6 +280,11 @@ function tokenize(runs: Run[]): Inline {
     const token = display.slice(start, i);
     if (SPEAKABLE_SYMBOLS.test(token)) {
       units.push({ start, end: i, spoken: token });
+      continue;
+    }
+    // An asterisk between numbers is multiplication ("2 * 3" is "2 times 3"); elsewhere it is markup.
+    if (token === '*' && /\d\s*$/.test(display.slice(0, start)) && /^\s*\d/.test(display.slice(i))) {
+      units.push({ start, end: i, spoken: '*' });
       continue;
     }
     while (s < e && LEADING.test(display[s]!)) s++;

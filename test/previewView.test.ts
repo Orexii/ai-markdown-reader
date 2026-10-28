@@ -123,3 +123,29 @@ test('an edit re-renders the document and keeps the highlight', () => {
   assert.equal(p.window.document.querySelector('h1')!.textContent, 'Kusto access, updated');
   assert.deepEqual(p.$$('.cmr-word').map(element => element.textContent), ['First']);
 });
+
+test('while its file is read, the preview sends the player keys; scrolling keys are left alone', () => {
+  const p = preview();
+  const press = (key: string, init: KeyboardEventInit = {}) => {
+    const event = new p.window.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
+    p.window.document.body.dispatchEvent(event);
+    return event.defaultPrevented;
+  };
+  const commands = () => p.posted.filter(message => message.type === 'command').map(message => message.action);
+  assert.equal(press('ArrowRight'), false, 'nothing is read yet');
+  assert.deepEqual(commands(), []);
+  p.show(1, 0);
+  assert.equal(press('ArrowRight'), true);
+  press('ArrowLeft');
+  press('ArrowRight', { shiftKey: true });
+  press('ArrowLeft', { shiftKey: true });
+  press('ArrowRight', { ctrlKey: true });
+  press('ArrowLeft', { ctrlKey: true });
+  press('ArrowDown', { shiftKey: true });
+  press('k');
+  press('+');
+  assert.deepEqual(commands(), ['nextParagraph', 'previousParagraph', 'nextSentence', 'previousSentence', 'skipForward', 'skipBack', 'nextSection', 'togglePlay', 'faster']);
+  for (const key of ['ArrowDown', 'ArrowUp', ' ', 'PageDown']) assert.equal(press(key), false, `${key} still scrolls`);
+  assert.equal(press('ArrowLeft', { altKey: true }), false, 'Alt+← is left to VS Code (Go Back)');
+  assert.equal(commands().length, 9);
+});

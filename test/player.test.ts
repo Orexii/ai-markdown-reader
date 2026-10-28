@@ -238,36 +238,67 @@ test('time skips cross passages using real and estimated durations', async () =>
   }
 });
 
-test('the |◀ ▶| buttons skip by paragraph; keys move by sentence or paragraph', async () => {
-  const p = player();
+test('the |◀ ▶| buttons and ← → move by paragraph; Shift moves by sentence or section; Ctrl skips seconds', async () => {
+  const sections = ['# Intro', 'One. Two.', '- Item.', '## Middle', 'Three. Four.', 'Five.', '## Last', 'Six.'].join('\n\n');
+  const p = player(sections, { skipBack: 1, skipForward: 2 });
   try {
     p.plan();
     p.ready();
     const at = () => p.position().index as number;
     const firstOf = (block: number) => p.doc.utterances.findIndex(u => u.block === block);
-    const blockAt = () => p.doc.utterances[at()]!.block;
+    const heading = (text: string) => p.doc.utterances.findIndex(u => u.words.map(w => w.text).join(' ') === text);
     assert.equal(p.$('next').getAttribute('aria-label'), 'Next paragraph');
-    assert.equal(p.$('previous').getAttribute('aria-label'), 'Previous paragraph');
+    assert.match(p.$('next').title, /→/);
+    assert.match(p.$('back').title, /Ctrl\+←/);
+
+    // Buttons and plain arrows: paragraphs.
     p.click('next');
     assert.equal(at(), firstOf(1), 'next paragraph from the heading');
-    p.click('next');
-    assert.equal(at(), firstOf(2), 'skips the rest of a two-sentence paragraph');
-    p.click('previous');
-    assert.equal(at(), firstOf(1), 'at the start of a paragraph, goes to the previous one');
+    p.key('ArrowRight');
+    assert.equal(at(), firstOf(2), '→ skips the rest of a two-sentence paragraph');
+    p.key('ArrowLeft');
+    assert.equal(at(), firstOf(1), 'at the start of a paragraph, ← goes to the previous one');
     p.key('ArrowRight', { shiftKey: true });
     assert.equal(at(), firstOf(1) + 1, 'Shift+→ moves one sentence');
-    assert.equal(blockAt(), 1);
     p.click('previous');
-    assert.equal(at(), firstOf(1), 'inside a paragraph, goes back to its start');
-    p.key('ArrowDown', { shiftKey: true });
-    assert.equal(at(), firstOf(2));
+    assert.equal(at(), firstOf(1), 'inside a paragraph, |◀ goes back to its start');
     p.key('ArrowLeft', { shiftKey: true });
-    assert.equal(at(), firstOf(2) - 1, 'Shift+← moves one sentence back');
+    assert.equal(at(), 0, 'Shift+← moves one sentence back');
+
+    // Shift with ↑ ↓ (and Page Up / Page Down): sections.
+    p.key('ArrowDown', { shiftKey: true });
+    assert.equal(at(), heading('Middle'));
+    p.key('PageDown');
+    assert.equal(at(), heading('Last'));
+    p.key('ArrowDown', { shiftKey: true });
+    assert.equal(at(), heading('Last'), 'no section after the last one');
+    assert.match(p.$('status').textContent!, /last section/);
+    p.key('ArrowRight');
     p.key('ArrowUp', { shiftKey: true });
-    assert.equal(at(), firstOf(1), 'Shift+↑ goes to the start of the paragraph');
+    assert.equal(at(), heading('Last'), 'Shift+↑ goes to the start of this section');
+    p.key('PageUp');
+    assert.equal(at(), heading('Middle'), 'then to the one before');
+    p.key('ArrowRight');
+    p.key('ArrowRight');
+    p.key('ArrowRight');
+    p.key('ArrowRight');
+    assert.equal(at(), p.doc.utterances.length - 1);
+    p.key('ArrowRight');
+    assert.match(p.$('status').textContent!, /last paragraph/);
+
+    // Ctrl (Option on macOS) with ← → skips by seconds; ↑ ↓ stay on the volume.
     p.key('Home');
-    assert.equal(at(), 0);
-    assert.equal(p.$('section').textContent, 'Heading');
+    p.audioFor(0, 2);
+    p.audioFor(1, 3);
+    p.key('ArrowRight', { ctrlKey: true });
+    assert.equal(at(), 1, 'Ctrl+→ forward 2 seconds crosses into the next passage');
+    p.key('ArrowLeft', { ctrlKey: true });
+    assert.equal(at(), 0, 'Ctrl+← back 1 second');
+    p.key('ArrowLeft', { altKey: true });
+    assert.equal(at(), 0, 'Alt+← is left to VS Code (Go Back) on Windows and Linux');
+    p.key('ArrowDown');
+    assert.equal(p.$('volume').getAttribute('aria-valuenow'), '95');
+    assert.equal(p.$('section').textContent, 'Intro');
   } finally {
     await p.close();
   }

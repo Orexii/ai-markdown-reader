@@ -76,3 +76,22 @@ test('raw HTML scripts do not become active content', () => {
   // Script elements may be present as markup, but the preview's CSP only runs its own nonce'd script.
   assert.ok(html.includes('<span class="w" data-p="0,34">there</span>'));
 });
+
+test('the Wagyu field guide renders every feature, with an id for each Contents link', () => {
+  const markdown = readFileSync('examples/wagyu.md', 'utf8');
+  const dom = render(markdown, { resolveImage: src => (/^https:/.test(src) ? src : `https://webview/${src}`) });
+  for (const link of dom.querySelectorAll('a[href^="#"]')) {
+    assert.ok(dom.getElementById(decodeURIComponent(link.getAttribute('href')!.slice(1))), `no heading for ${link.getAttribute('href')}`);
+  }
+  assert.equal(dom.querySelectorAll('img').length, 6, 'the title image and five in the gallery');
+  assert.ok([...dom.querySelectorAll('img')].every(image => image.getAttribute('src')), 'every image has a source');
+  assert.equal(dom.querySelectorAll('table tbody tr').length, 7);
+  assert.equal(dom.querySelectorAll('blockquote.alert').length, 5);
+  assert.equal(dom.querySelectorAll('input.task-list-item-checkbox').length, 4);
+  assert.equal(dom.querySelectorAll('pre').length, 8);
+  assert.ok(dom.querySelector('details summary'));
+  assert.equal(dom.querySelectorAll('kbd').length, 2);
+  assert.ok(!dom.body.textContent!.includes('purpose:'), 'front matter is hidden');
+  assert.ok(dom.querySelector('a[href="https://en.wikipedia.org/wiki/Shiba_Inu"]'), 'bare addresses become links');
+  assert.ok(dom.querySelector('a[href="demo.md"]'));
+});

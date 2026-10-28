@@ -23,7 +23,8 @@ const BUILTIN: Record<string, string> = {
   MySQL: 'my S Q L', SQLite: 'S Q lite', NuGet: 'new get', kubectl: 'kube control', nginx: 'engine x',
   GUID: 'goo id', 'C#': 'C sharp', 'F#': 'F sharp', 'C++': 'C plus plus', '.NET': 'dot net', README: 'read me',
   stdin: 'standard in', stdout: 'standard out', stderr: 'standard error', regex: 'rej ex', TODO: 'to do',
-  JSONL: 'jason L', npm: 'N P M', pnpm: 'P N P M', WinGet: 'win get', winget: 'win get', vs: 'versus'
+  JSONL: 'jason L', npm: 'N P M', pnpm: 'P N P M', WinGet: 'win get', winget: 'win get', vs: 'versus',
+  Ctrl: 'control', Cmd: 'command', Esc: 'escape', PgUp: 'page up', PgDn: 'page down'
 };
 
 const ABBREVIATIONS: Record<string, string> = {
@@ -35,7 +36,14 @@ const ABBREVIATIONS: Record<string, string> = {
 const SYMBOLS: Record<string, string> = {
   '&': 'and', '+': 'plus', '=': 'equals', '%': 'percent', $: 'dollars', '#': 'number', '@': 'at',
   '<': 'less than', '>': 'greater than', '→': 'to', '->': 'to', '=>': 'to', '<-': 'from', '×': 'times',
-  '~': 'about', '≈': 'about', '±': 'plus or minus', '/': 'slash'
+  '~': 'about', '≈': 'about', '±': 'plus or minus', '/': 'slash', '↑': 'up', '↓': 'down', '←': 'back',
+  // Only reaches here between numbers: elsewhere an asterisk is Markdown and is not spoken.
+  '*': 'times'
+};
+
+/** Arrow and key symbols as key names, for keyboard shortcuts such as Shift+← or <kbd>→</kbd>. */
+export const KEY_NAMES: Record<string, string> = {
+  '←': 'left arrow', '→': 'right arrow', '↑': 'up arrow', '↓': 'down arrow', '⌘': 'command', '⌥': 'option', '⇧': 'shift', '⏎': 'enter', '↵': 'enter'
 };
 
 const SEPARATORS: Record<string, string> = {
@@ -81,9 +89,35 @@ function year(value: string): string {
   return `${left} ${right}${suffix}`;
 }
 
+/** Units said in full after a number, as [plural, singular]. Single letters are only units after a number. */
+const UNITS: Record<string, [string, string]> = {
+  kg: ['kilograms', 'kilogram'], g: ['grams', 'gram'], mg: ['milligrams', 'milligram'], lb: ['pounds', 'pound'],
+  lbs: ['pounds', 'pound'], oz: ['ounces', 'ounce'], km: ['kilometers', 'kilometer'], m: ['meters', 'meter'],
+  cm: ['centimeters', 'centimeter'], mm: ['millimeters', 'millimeter'], mi: ['miles', 'mile'], ft: ['feet', 'foot'],
+  mph: ['miles per hour', 'mile per hour'], ml: ['milliliters', 'milliliter'], mL: ['milliliters', 'milliliter'],
+  h: ['hours', 'hour'], hr: ['hours', 'hour'], hrs: ['hours', 'hour'], min: ['minutes', 'minute'], s: ['seconds', 'second'],
+  sec: ['seconds', 'second'], ms: ['milliseconds', 'millisecond'], 'µs': ['microseconds', 'microsecond'], ns: ['nanoseconds', 'nanosecond'],
+  KB: ['kilobytes', 'kilobyte'], MB: ['megabytes', 'megabyte'], GB: ['gigabytes', 'gigabyte'], TB: ['terabytes', 'terabyte'],
+  PB: ['petabytes', 'petabyte'], KiB: ['kibibytes', 'kibibyte'], MiB: ['mebibytes', 'mebibyte'], GiB: ['gibibytes', 'gibibyte'],
+  TiB: ['tebibytes', 'tebibyte'], PiB: ['pebibytes', 'pebibyte'], Kbps: ['kilobits per second', 'kilobit per second'],
+  Mbps: ['megabits per second', 'megabit per second'], Gbps: ['gigabits per second', 'gigabit per second'],
+  Hz: ['hertz', 'hertz'], kHz: ['kilohertz', 'kilohertz'], MHz: ['megahertz', 'megahertz'], GHz: ['gigahertz', 'gigahertz'],
+  '°C': ['degrees Celsius', 'degree Celsius'], '°F': ['degrees Fahrenheit', 'degree Fahrenheit']
+};
+/** Units that are unambiguous when written straight after a number, as in 8kg or 100GiB ("80s" and "5G" are not). */
+const ATTACHED_UNITS = new Set(Object.keys(UNITS).filter(unit => unit.length > 1 && !['mi', 'ml', 'mL', 'min', 'sec'].includes(unit)));
+
+function unitName(unit: string, amount: string): string | undefined {
+  const names = UNITS[unit];
+  return names && (amount.replace(/,/g, '') === '1' ? names[1] : names[0]);
+}
+
 /** Normalizes numbers, money, times and ranges to words eSpeak pronounces naturally. */
 export function normalizeNumber(word: string): string | undefined {
   let match: RegExpExecArray | null;
+  if ((match = /^(\d[\d,]*(?:\.\d+)?)([A-Za-zµ°]+)$/.exec(word)) && ATTACHED_UNITS.has(match[2]!)) {
+    return `${match[1]!.replace(/,/g, '').split('.').join(' point ')} ${unitName(match[2]!, match[1]!)}`;
+  }
   if ((match = /^([$£€])(\d[\d,]*(?:\.\d+)?)$/.exec(word))) return money(match[1]!, match[2]!);
   if ((match = /^(\d{1,2}):(\d{2})$/.exec(word))) {
     const minutes = Number(match[2]);
@@ -94,6 +128,7 @@ export function normalizeNumber(word: string): string | undefined {
   if ((match = /^(\d+(?:\.\d+)?)[xX]$/.exec(word))) return `${match[1]} times`;
   if ((match = /^[vV](\d+(?:\.\d+){0,3})$/.exec(word))) return `version ${match[1]!.split('.').join(' point ')}`;
   if ((match = /^~(\d.*)$/.exec(word))) return `about ${match[1]}`;
+  if ((match = /^(\d[\d,]*(?:\.\d+)?)%$/.exec(word))) return `${match[1]!.replace(/,/g, '').split('.').join(' point ')} percent`;
   if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(word)) return word.replace(/,/g, '');
   return undefined;
 }
@@ -122,9 +157,13 @@ function mergeText(segments: Segment[]): Segment[] {
  * phonemes for spelled acronyms and IPA dictionary entries. With textOnly, spelled acronyms
  * become spaced letters so system voices can say them.
  */
-export function pronounce(word: string, accent: Accent = 'us', dictionary: ReadonlyMap<string, string> = new Map(), textOnly = false): Segment[] {
+export function pronounce(word: string, accent: Accent = 'us', dictionary: ReadonlyMap<string, string> = new Map(), textOnly = false,
+  previous?: string): Segment[] {
   const value = word.trim();
   if (!value) return [];
+  // A unit after a number: "8–11 kg" is "8 to 11 kilograms", "1 GB" is "1 gigabyte".
+  const amount = previous?.trim().match(/(\d[\d,]*(?:\.\d+)?)\)?$/)?.[1];
+  if (amount !== undefined && UNITS[value] && !dictionary.has(value)) return [{ text: unitName(value, /[-–]/.test(previous!) ? '2' : amount)! }];
   const letters = (text: string, plural = false): Segment => textOnly
     ? { text: `${[...text.toUpperCase()].join(' ')}${plural ? "'s" : ''}` }
     : { phonemes: spell(text, accent, plural) };
@@ -148,6 +187,12 @@ export function pronounce(word: string, accent: Accent = 'us', dictionary: Reado
   const coded = /^([A-Z]{1,4})(\d+)$/.exec(value);
   if (coded) return [letters(coded[1]!), { text: coded[2]! }];
 
+  // Keyboard shortcuts such as Ctrl+Shift+→: arrows and symbols are key names here.
+  if (/^[A-Za-z]+(?:\+[A-Za-z]+)*\+[A-Za-z0-9←→↑↓⌘⌥⇧⏎↵]$/.test(value) || /^(?:[A-Za-z]+\+)+[←→↑↓]$/.test(value)) {
+    return mergeText(value.split('+').flatMap((key, k): Segment[] => [
+      ...(k ? [{ text: 'plus' }] : []), KEY_NAMES[key] ? { text: KEY_NAMES[key]! } : BUILTIN[key] ? { text: BUILTIN[key]! } : isAcronym(key) && key.length > 1 ? letters(key) : { text: key }
+    ]));
+  }
   if (!looksLikeIdentifier(value)) return [{ text: value }];
   const segments: Segment[] = [];
   for (const part of identifierParts(value)) {
@@ -165,8 +210,8 @@ export function pronounce(word: string, accent: Accent = 'us', dictionary: Reado
 }
 
 /** Plain-text rendering for system voices, which cannot take phoneme input. */
-export function pronounceAsText(word: string, dictionary: ReadonlyMap<string, string> = new Map()): string {
-  return pronounce(word, 'us', dictionary, true).map(segment => 'text' in segment ? segment.text : '').join(' ').trim();
+export function pronounceAsText(word: string, dictionary: ReadonlyMap<string, string> = new Map(), previous?: string): string {
+  return pronounce(word, 'us', dictionary, true, previous).map(segment => 'text' in segment ? segment.text : '').join(' ').trim();
 }
 
 /** Builds a pronunciation dictionary from the user setting, ignoring invalid entries. */

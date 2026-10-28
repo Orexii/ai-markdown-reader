@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.0
+
+- **Arrow keys move through the text.** In the player, ← / → go to the previous / next paragraph (like the
+  |◀ ▶| buttons), Shift+← / Shift+→ by sentence, and Shift+↑ / Shift+↓ (or Page Up / Page Down) by
+  section. Ctrl+← / Ctrl+→ (Option on macOS) skip 10 / 30 seconds, as do J / L and the ↺ 10 / 30 ↻
+  buttons. ↑ / ↓ still change the volume. The same keys work in the Read Aloud Preview while its file
+  is being read. New commands: **Previous Section** and **Next Section**.
+- **Better pronunciation:** percentages ("100 percent"), units after numbers ("8 kilograms",
+  "100 gibibytes", "250 milliseconds"), keyboard shortcuts ("control plus right arrow"), arrows inside
+  `<kbd>`, multiplication ("2 times 3"), and a pause at hard line breaks, so addresses and poems are
+  read line by line.
+- **A master test file:** `examples/wagyu.md`, a Shiba-themed tour of every Markdown feature, with
+  `examples/wagyu-checklist.md` to verify each control by hand. The unit tests read it too.
+
 ## 0.6.0
 
 - **New name: AI Markdown Reader - Read Aloud**, and an icon: Wagyu, a red Shiba Inu, reading a

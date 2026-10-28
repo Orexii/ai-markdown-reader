@@ -1,5 +1,8 @@
 import { BASIC_SPEEDS, formatSpeed } from './speeds';
 
+/** The modifier that, with ← or →, skips by seconds: Ctrl, or Option on macOS (where Ctrl+← switches desktops). */
+const JUMP = process.platform === 'darwin' ? 'Option' : 'Ctrl';
+
 export interface MarkupOptions {
   cspSource: string;
   nonce: string;
@@ -58,11 +61,11 @@ export function playerMarkup(options: MarkupOptions): string {
 <div class="times"><span id="elapsed"></span><span id="remaining"></span></div>
 <div class="controls">
 <div class="buttons">
-<button id="previous" class="icon" title="Previous paragraph (Shift+↑)" aria-label="Previous paragraph">${icon('previous')}</button>
-<button id="back" class="icon" title="Back ${options.skipBack} seconds (← or J)" aria-label="Back ${options.skipBack} seconds">${icon('back', String(options.skipBack))}</button>
+<button id="previous" class="icon" title="Previous paragraph (←)" aria-label="Previous paragraph">${icon('previous')}</button>
+<button id="back" class="icon" title="Back ${options.skipBack} seconds (J or ${JUMP}+←)" aria-label="Back ${options.skipBack} seconds">${icon('back', String(options.skipBack))}</button>
 <button id="play" class="icon primary" title="Play (Space)" aria-label="Play">${icon('play')}</button>
-<button id="forward" class="icon" title="Forward ${options.skipForward} seconds (→ or L)" aria-label="Forward ${options.skipForward} seconds">${icon('forward', String(options.skipForward))}</button>
-<button id="next" class="icon" title="Next paragraph (Shift+↓)" aria-label="Next paragraph">${icon('next')}</button>
+<button id="forward" class="icon" title="Forward ${options.skipForward} seconds (L or ${JUMP}+→)" aria-label="Forward ${options.skipForward} seconds">${icon('forward', String(options.skipForward))}</button>
+<button id="next" class="icon" title="Next paragraph (→)" aria-label="Next paragraph">${icon('next')}</button>
 </div>
 <div class="extras">
 <select id="rate" class="rate" title="Speed (- / +)" aria-label="Speed">${speeds}</select>

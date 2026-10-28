@@ -10,7 +10,8 @@ import { DescribeLens } from './lens';
 import { PreviewPanels } from './previewPanel';
 import { formatSpeed, speedChoices } from './speeds';
 
-const TRANSPORT = ['togglePlay', 'play', 'pause', 'skipBack', 'skipForward', 'previousSentence', 'nextSentence', 'previousParagraph', 'nextParagraph', 'faster', 'slower'];
+const TRANSPORT = ['togglePlay', 'play', 'pause', 'skipBack', 'skipForward', 'previousSentence', 'nextSentence', 'previousParagraph', 'nextParagraph',
+  'previousSection', 'nextSection', 'faster', 'slower'];
 /** VS Code's own Markdown preview: the "Markdown Preview" editor type, and the Open Preview panel. */
 const BUILT_IN_PREVIEW_EDITOR = 'vscode.markdown.preview.editor';
 const isBuiltInPreviewPanel = (viewType: string) => viewType === 'markdown.preview' || viewType.endsWith('-markdown.preview');
@@ -134,6 +135,9 @@ export function activate(context: vscode.ExtensionContext): void {
     const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
     if (input instanceof vscode.TabInputCustom) await vscode.window.showTextDocument(input.uri, { viewColumn: vscode.ViewColumn.Beside });
   });
+  context.subscriptions.push(previews.onDidRequestCommand(({ uri, action }) => {
+    if (TRANSPORT.includes(action) && reader.isReading(uri)) reader.command(action);
+  }));
   context.subscriptions.push(previews.onDidRequestRead(async ({ uri, line, character }) => {
     try {
       const document = await vscode.workspace.openTextDocument(uri);

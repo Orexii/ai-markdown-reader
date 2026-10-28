@@ -180,7 +180,7 @@ export class KokoroModel {
     for (const [u, utterance] of request.utterances.entries()) {
       const pieces: Piece[] = [];
       for (const [k, word] of utterance.words.entries()) {
-        for (const segment of pronounce(word.text, accent, dictionary)) {
+        for (const segment of pronounce(word.text, accent, dictionary, false, utterance.words[k - 1]?.text)) {
           if ('phonemes' in segment) {
             pieces.push({ word: k, phonemes: toMisaki(segment.phonemes, accent) });
             continue;
