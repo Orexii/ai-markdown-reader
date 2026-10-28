@@ -43,11 +43,20 @@ function scheduler(engine: SpeechEngine) {
 
 const settle = () => new Promise(resolve => setTimeout(resolve, 30));
 
+/** Waits for queued synthesis to finish; Windows timers are coarse, so fixed delays are unreliable. */
+async function until(check: () => boolean, timeout = 5000): Promise<void> {
+  const started = Date.now();
+  while (!check()) {
+    if (Date.now() - started > timeout) throw new Error('Timed out waiting for the scheduler.');
+    await new Promise(resolve => setTimeout(resolve, 5));
+  }
+}
+
 test('the urgent passage is synthesized first, combining a short heading with what follows', async () => {
   const engine = new FakeEngine();
   const { instance, delivered } = scheduler(engine);
   instance.need([0, 1, 2, 3, 4]);
-  await settle();
+  await until(() => delivered.length === 5);
   assert.deepEqual(delivered, [0, 1, 2, 3, 4]);
   assert.equal(engine.calls[0]!.length, 2, 'short heading merged with the next passage');
   const first = spokenLength(doc.utterances[0]!) + spokenLength(doc.utterances[1]!);
@@ -63,7 +72,7 @@ test('cached audio is delivered again without new synthesis, and in-flight work 
   await new Promise(resolve => setTimeout(resolve, 5));
   assert.equal(engine.calls.length, 1);
   engine.release!();
-  await settle();
+  await until(() => delivered.length === 1);
   assert.deepEqual(delivered, [3]);
   instance.need([3]);
   assert.deepEqual(delivered, [3, 3]);
@@ -76,7 +85,7 @@ test('a jump re-prioritizes queued work and failures are reported without stoppi
   engine.failNext = true;
   instance.need([0, 1, 2]);
   instance.need([4, 3]);
-  await settle();
+  await until(() => failed.length === 1 && delivered.length === 2);
   assert.deepEqual(failed, [[0, 'boom']]);
   assert.deepEqual(delivered, [4, 3]);
   assert.ok(engine.calls.every(call => call.length === 1), 'engines without batching get one passage per request');
@@ -99,11 +108,12 @@ test('batches stay small while little audio is buffered and grow once playback i
   const run = async (ahead: number) => {
     const engine = new FakeEngine();
     const logs: string[] = [];
+    let delivered = 0;
     const instance = new Scheduler({
-      engine, utterances: long.utterances, voice: 'af_heart', dictionary: [], deliver: () => undefined, fail: () => undefined, log: message => logs.push(message)
+      engine, utterances: long.utterances, voice: 'af_heart', dictionary: [], deliver: () => { delivered++; }, fail: () => undefined, log: message => logs.push(message)
     });
     instance.need(long.utterances.map((_, i) => i).slice(0, 4), ahead, 2);
-    await settle();
+    await until(() => delivered === 4);
     instance.dispose();
     return { calls: engine.calls, logs };
   };
