@@ -71,6 +71,19 @@ test('table rows highlight the row, each cell value and the header named before 
   assert.equal(empty.range, null);
   assert.equal(row.line, 2);
   assert.equal(doc.utterances[2]!.line, 3);
+  assert.deepEqual(doc.utterances.map(u => u.part), [0, 1, 2], 'the introduction and each row are separate stops for ← / →');
+});
+
+test('moving by paragraph stops at each table row, and a long row read in parts is one stop', () => {
+  const plan = Array.from({ length: 6 }, (_, k) => `step ${k + 1} explains what happens next and who owns the follow-up work`).join('; ');
+  const markdown = `First sentence. Second sentence.\n\n| # | Plan |\n| --- | --- |\n| 1 | ${plan} |\n| 2 | Short. |\n\nAfter.`;
+  const doc = buildDocument(markdown);
+  const stops = doc.utterances.map(u => `${u.block}:${u.part}`);
+  assert.deepEqual([...new Set(stops)], ['0:0', '1:0', '1:1', '1:2', '2:0'], 'a paragraph, the table introduction, each row, the next paragraph');
+  assert.equal(stops.filter(stop => stop === '0:0').length, 2, 'the sentences of a paragraph are one stop');
+  const longRow = doc.utterances.filter(u => u.block === 1 && u.part === 1);
+  assert.ok(longRow.length > 1, 'the long row is read in parts');
+  assert.ok(longRow.every(u => u.line === 4), 'every part belongs to the row on line 4');
 });
 
 test('column mode keeps row identity and spans the column', () => {
@@ -85,6 +98,7 @@ test('column mode keeps row identity and spans the column', () => {
   const column = doc.utterances[2]!.range!;
   assert.equal(column.line, 0);
   assert.equal(column.endLine, 3);
+  assert.deepEqual(doc.utterances.map(u => u.part), [0, 1, 2], 'reading by column, each column is a stop');
 });
 
 test('front matter is skipped, line numbers survive and selection offsets apply', () => {
@@ -171,6 +185,7 @@ test('approved descriptions replace a block narration and highlight the whole bl
   const doc = buildDocument(markdown, { overrides: new Map([[table, 'The table has one row. A is 1, and B is 2.']]) });
   assert.deepEqual(doc.utterances.map(utteranceText), ['Results.', 'The table has one row.', 'A is 1, and B is 2.', 'After.']);
   assert.ok(doc.utterances.slice(1, 3).every(u => slice(markdown, u.range) === '| A | B |\n| - | - |\n| 1 | 2 |' && u.words.every(word => word.range === null)));
+  assert.ok(doc.utterances.slice(1, 3).every(u => u.part === 0), 'a description is one stop');
   assert.equal(doc.blocks[table]!.first, 1);
   assert.equal(doc.blocks.at(-1)!.first, 3);
 });

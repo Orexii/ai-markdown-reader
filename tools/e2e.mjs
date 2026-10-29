@@ -4,7 +4,6 @@
 // From WSL, pass the Windows executable (for example "/mnt/c/Program Files/Microsoft VS Code/Code.exe").
 import { execFileSync, spawn } from 'node:child_process';
 import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { bundle, copyNative } from './build.mjs';
@@ -70,7 +69,9 @@ try {
     !/DeprecationWarning|mutex|agentHost|CloudSandbox|Unknown channel|proposal|GPU|gpu_/i.test(line) && !/:ERROR:/.test(line));
   console.log(relevant.join('\n'));
   if (exit !== 0) {
-    if (existsSync(path.join(temp, 'profile', 'logs'))) console.log(`Logs kept at ${path.join(temp, 'profile', 'logs')}`);
+    // The filter above can hide the reason for a failure; show the end of everything VS Code printed.
+    console.log(`--- Last lines from VS Code ---\n${output.split(/\r?\n/).filter(line => line.trim()).slice(-40).join('\n')}`);
+    if (process.env.CMR_KEEP_E2E) console.log(`Logs kept at ${path.join(temp, 'profile', 'logs')}`);
     throw new Error(`VS Code integration test failed with exit code ${exit}.`);
   }
 } finally {

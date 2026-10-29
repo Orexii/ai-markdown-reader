@@ -27,7 +27,7 @@ export interface PlanStart {
 export function planMessage(doc: ReaderDocument, revision: number, start: PlanStart, settings: PlanSettings, title: string, selection: boolean) {
   return {
     type: 'plan', revision, title, selection, start, settings,
-    utterances: doc.utterances.map(u => ({ c: spokenLength(u), b: u.block, p: u.pauseAfter, n: u.words.length })),
+    utterances: doc.utterances.map(u => ({ c: spokenLength(u), b: u.block, r: u.part, p: u.pauseAfter, n: u.words.length })),
     blocks: doc.blocks.map(block => ({ k: block.kind, f: block.first, t: block.heading?.text, l: block.heading?.level }))
   };
 }

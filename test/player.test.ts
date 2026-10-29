@@ -304,6 +304,44 @@ test('the |◀ ▶| buttons and ← → move by paragraph; Shift moves by senten
   }
 });
 
+test('in a table, ← → and the |◀ ▶| buttons move one row at a time, even when a long row is read in parts', async () => {
+  const plan = Array.from({ length: 6 }, (_, k) => `step ${k + 1} explains what happens next and who owns the follow-up work`).join('; ');
+  const markdown = ['Before the table.', `| # | Plan |\n| --- | --- |\n| 1 | ${plan} |\n| 2 | Short. |`, 'After the table.'].join('\n\n');
+  const p = player(markdown);
+  try {
+    p.plan();
+    p.ready();
+    const at = () => p.position().index as number;
+    const row = (part: number) => p.doc.utterances.findIndex(u => u.block === 1 && u.part === part);
+    assert.ok(p.doc.utterances.filter(u => u.block === 1 && u.part === 1).length > 1, 'the long row is read in parts');
+
+    p.key('ArrowRight');
+    assert.equal(at(), row(0), '→ goes to the table introduction');
+    p.key('ArrowRight');
+    assert.equal(at(), row(1), 'then to the first row');
+    p.key('ArrowRight', { shiftKey: true });
+    assert.equal(at(), row(1) + 1, 'Shift+→ moves to the next part of a long row');
+    p.click('next');
+    assert.equal(at(), row(2), '▶| skips the rest of the row to the next row');
+    p.key('ArrowRight');
+    assert.equal(at(), p.doc.utterances.length - 1, 'after the last row, → leaves the table');
+
+    p.key('ArrowLeft');
+    assert.equal(at(), row(2), '← goes back to the last row');
+    p.key('ArrowLeft');
+    assert.equal(at(), row(1), 'then to the start of the long row');
+    p.key('ArrowRight', { shiftKey: true });
+    p.click('previous');
+    assert.equal(at(), row(1), 'inside a long row, |◀ goes back to its start');
+    p.key('ArrowLeft');
+    assert.equal(at(), row(0), 'then to the table introduction');
+    p.key('ArrowLeft');
+    assert.equal(at(), 0, 'then to the paragraph before the table');
+  } finally {
+    await p.close();
+  }
+});
+
 test('host commands seek to a word, and Play with nothing loaded asks to read the open file', async () => {
   const p = player();
   try {

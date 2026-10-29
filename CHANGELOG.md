@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.2
+
+- **→ and ← move through a table one row at a time.** They used to skip a whole table at once, as did
+  the |◀ ▶| buttons and the previous and next track keys. Now the first press goes to the table's
+  introduction (how many rows and which columns), then each press moves one row, even when a long
+  row is read in parts. When reading by column, each press moves one column.
+
 ## 0.8.1
 
 - **The Read Aloud button in a preview reads in the preview.** The speaker button in the title bar of a

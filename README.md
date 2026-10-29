@@ -106,8 +106,8 @@ modifier changes the step:
 
 | Key | Action |
 | --- | --- |
-| ← / → | Previous / next paragraph (a table counts as one paragraph) |
-| Shift+← / Shift+→ | Previous / next sentence (in a table, row by row) |
+| ← / → | Previous / next paragraph (in a table, row by row) |
+| Shift+← / Shift+→ | Previous / next sentence |
 | Ctrl+← / Ctrl+→ (Option on macOS) | Back 10 / forward 30 seconds; J / L do the same |
 | Shift+↑ / Shift+↓, Page Up / Page Down | Previous / next section (heading) |
 | ↑ / ↓ | Volume; M mutes |
@@ -124,8 +124,8 @@ previous-track button of a music player. Alt+← is not used because it is **Go 
   task items say whether they are completed, and nested items stay in order.
 - **Tables** first say how many rows and which columns they have, then read each row with its column
   names: *"Mail. State: Ready. Next action: Send the draft."* The row is highlighted, and each cell
-  and its column header light up as they are spoken. Empty cells are read as "empty". Column-by-column
-  reading is in the settings.
+  and its column header light up as they are spoken. Empty cells are read as "empty". ← / → and the
+  |◀ ▶| buttons move one row at a time. Column-by-column reading is in the settings.
 - **Code blocks** are announced with their language and length by default; they can be read line by
   line or skipped. **Raw HTML** is not read.
 - **Headings, quotes and callouts** (`> [!NOTE]`, `> [!WARNING]` …) get natural pauses and a short cue.
@@ -231,10 +231,12 @@ node tools/e2e.mjs --code <VS Code executable> --model .model --quality compact
 npm run package                                     # releases/*.vsix for all six platforms
 ```
 
-`tools/e2e.mjs` works from WSL with the Windows `Code.exe`. It plays a document at 2× with the player
+`tools/e2e.mjs` works from WSL with the Windows `Code.exe`. It plays a document at 3× with the player
 hidden and checks that the editor highlights the word being spoken, that playback never stalls more
-than once, and that every track handoff is gapless. CI runs the unit and real-model tests and
-the bundled-engine smoke test on Windows, macOS and Linux (x64 and Arm), then packages every platform.
+than once, and that every track handoff is gapless. It also moves through a table row by row, clicks
+the Read Aloud button in each kind of preview and plays a new document at 5×. CI does not run it; CI
+runs the unit and real-model tests and the bundled-engine smoke test on Windows, macOS and Linux (x64
+and Arm), then packages every platform.
 
 For a hands-on check, [examples/wagyu.md](examples/wagyu.md) is a Shiba-themed master test file that
 uses every Markdown feature the reader supports (the unit tests read it too), and

@@ -19,8 +19,8 @@ next to each feature (an HTML comment starting with "Check:") that says what you
 Click an empty part of the **Read Aloud** section first, so it has keyboard focus.
 
 - [ ] → goes to the next paragraph, ← to the start of this paragraph (press again for the one before).
-  In the Quick facts table, → skips the whole table.
-- [ ] Shift+→ and Shift+← move one sentence. In the table they move one row.
+  In the Quick facts table, → goes to the table's introduction first, then one row at a time.
+- [ ] Shift+→ and Shift+← move one sentence.
 - [ ] Ctrl+→ goes forward 30 seconds and Ctrl+← back 10 seconds (Option instead of Ctrl on a Mac).
 - [ ] Shift+↓ goes to the next heading, Shift+↑ to the start of this section, then the one before.
   Page Down and Page Up do the same.

@@ -51,7 +51,7 @@ export async function run(): Promise<void> {
   await extension.activate();
   const file = path.join(os.tmpdir(), `ai-markdown-reader-e2e-${Date.now()}.md`);
   const story = Array.from({ length: 14 }, (_, i) => `Sentence ${i + 1} keeps the reader busy for a few seconds so that playback can be measured.`).join(' ');
-  const text = `# Integration test\n\nThe ANF team reads tables, row by row.\n\n- **First:** flowing prose.\n\n| Service | State |\n| --- | --- |\n| Mail | Ready |\n\n${story}\n`;
+  const text = `# Integration test\n\nThe ANF team reads tables, row by row.\n\n- **First:** flowing prose.\n\n| Service | State |\n| --- | --- |\n| Mail | Ready |\n| Chat | Busy |\n\n${story}\n`;
   await writeFile(file, text);
   const document = await vscode.workspace.openTextDocument(file);
   const editor = await vscode.window.showTextDocument(document);
@@ -112,6 +112,9 @@ export async function run(): Promise<void> {
   editor.selection = new vscode.Selection(new vscode.Position(8, 9), new vscode.Position(8, 9));
   await vscode.commands.executeCommand('aiMarkdownReader.readFromCursor');
   current = await until(s => s.sentenceText === '| Mail | Ready |', 'reading the table row at the cursor');
+  // Next paragraph in a table moves one row, not past the whole table.
+  await vscode.commands.executeCommand('aiMarkdownReader.nextParagraph');
+  current = await until(s => s.sentenceText === '| Chat | Busy |', 'next paragraph to move to the next table row');
 
   // Editing while listening keeps the highlight on the words being spoken.
   await editor.edit(edit => edit.insert(new vscode.Position(0, 0), 'Added while listening.\n\n'));

@@ -18,6 +18,11 @@ export interface SpokenWord {
 
 export interface Utterance {
   block: number;
+  /**
+   * Which stop within its block this belongs to when moving by paragraph: a table's introduction and
+   * each of its rows (or columns, when reading by column) are separate stops; other blocks are one stop.
+   */
+  part: number;
   words: SpokenWord[];
   /** Source highlighted for the whole utterance: the sentence, a table row or a code block. */
   range: SourceRange | null;
@@ -362,10 +367,12 @@ class Builder {
     return this.blocks.length - 1;
   }
 
-  private add(block: number, groups: Group[], pause: number, finalPause: number): void {
+  /** Adds a block's spoken groups. With `separateParts`, each group (a table row) is its own paragraph stop. */
+  private add(block: number, groups: Group[], pause: number, finalPause: number, separateParts = false): void {
     const spoken = groups.filter(group => group.words.some(word => word.text));
     const info = this.blocks[block]!;
     spoken.forEach((group, index) => {
+      const part = separateParts ? index : 0;
       const chunks = splitWords(group.words);
       chunks.forEach((chunk, k) => {
         if (info.first < 0) info.first = this.utterances.length;
@@ -373,7 +380,7 @@ class Builder {
         // Lines of the text itself (a sentence or a table row), so saved positions are precise.
         const line = range ? range.line : info.line;
         const endLine = range ? range.endLine + 1 : info.endLine;
-        this.utterances.push({ block, words: chunk, range, line, endLine, pauseAfter: k < chunks.length - 1 ? PAUSE.clause : pause });
+        this.utterances.push({ block, part, words: chunk, range, line, endLine, pauseAfter: k < chunks.length - 1 ? PAUSE.clause : pause });
       });
       if (index === spoken.length - 1 && this.utterances.length) this.utterances.at(-1)!.pauseAfter = finalPause;
     });
@@ -493,7 +500,7 @@ class Builder {
         groups.push({ range: rowRange(r.map), words });
       }
     }
-    this.add(block, groups, PAUSE.row, PAUSE.paragraph);
+    this.add(block, groups, PAUSE.row, PAUSE.paragraph, true);
     return i;
   }
 
@@ -594,7 +601,7 @@ function applyOverrides(document: ReaderDocument, overrides: ReadonlyMap<number,
       if (/[.!?]/.test(word.sep)) sentencesOf.push([]);
     }
     const replacement = sentencesOf.filter(list => list.length).flatMap(list => splitWords(list)).map((chunk, k, all): Utterance => ({
-      block, words: chunk, range, pauseAfter: k === all.length - 1 ? PAUSE.paragraph : PAUSE.sentence, line: info.line, endLine: info.endLine
+      block, part: 0, words: chunk, range, pauseAfter: k === all.length - 1 ? PAUSE.paragraph : PAUSE.sentence, line: info.line, endLine: info.endLine
     }));
     let at = document.utterances.findIndex(u => u.block >= block);
     if (at < 0) at = document.utterances.length;

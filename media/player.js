@@ -325,20 +325,24 @@
     go(index + step, 0);
   }
 
+  /** Whether two passages are in the same paragraph stop: the same block and, in a table, the same row. */
+  const sameStop = (a, b) => a.b === b.b && a.r === b.r;
+
   function paragraph(step) {
-    const block = utterances[index]?.b;
+    const here = utterances[index];
+    if (!here) return;
     if (step > 0) {
-      const next = utterances.findIndex((u, i) => i > index && u.b !== block);
+      const next = utterances.findIndex((u, i) => i > index && !sameStop(u, here));
       if (next >= 0) go(next, 0);
       else flash('This is the last paragraph');
       return;
     }
     let start = index;
-    while (start > 0 && utterances[start - 1].b === block) start--;
-    const insideBlock = start < index || offsetNow() > 1.5;
-    if (!insideBlock && start > 0) {
-      const previous = utterances[--start].b;
-      while (start > 0 && utterances[start - 1].b === previous) start--;
+    while (start > 0 && sameStop(utterances[start - 1], here)) start--;
+    const insideStop = start < index || offsetNow() > 1.5;
+    if (!insideStop && start > 0) {
+      const previous = utterances[--start];
+      while (start > 0 && sameStop(utterances[start - 1], previous)) start--;
     }
     go(start, 0);
   }

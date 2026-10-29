@@ -73,7 +73,7 @@ flowing sentence and shown as separate lines in the preview. -->
 each row is read with its column names, for example "Coat. Wagyu: Red, with a cream chest and white
 socks. Typical Shiba Inu: Red, sesame, black and tan, or cream." The empty Weight cell is read as
 "empty", and the escaped pipe is silent. The row is highlighted, and each cell and its column name
-light up as they are read. Press → in the player to skip the whole table; Shift+→ steps row by row.
+light up as they are read. Press → in the player to step through the table one row at a time.
 A "Describe this table with Copilot" link appears above the table while the file is being read. -->
 
 ### The Shiba scream
