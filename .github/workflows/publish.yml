@@ -32,4 +32,5 @@ jobs:
       - run: npm test
       # One package per platform: each contains only that platform's native speech runtime.
       - run: npm run package
-      - run: npx vsce publish --oidc --packagePath releases/*.vsix
+      # --skip-duplicate lets a re-run upload only the platforms the Marketplace does not have yet.
+      - run: npx vsce publish --oidc --skip-duplicate --packagePath releases/*.vsix

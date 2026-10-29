@@ -246,6 +246,9 @@ the packages from `npm run package`. Publishing the release runs
 [publish.yml](.github/workflows/publish.yml), which tests, packages and publishes all six platforms to
 the VS Code Marketplace with
 [Trusted Publishing](https://github.com/microsoft/vscode-vsce#trusted-publishing) (no stored token).
+New platform packages appear on the Marketplace only after Microsoft verifies them, which can take a
+while. If a platform is still missing once verification is done, run the workflow again from the
+Actions tab: it uploads only the platforms that are missing.
 
 ## License
 
