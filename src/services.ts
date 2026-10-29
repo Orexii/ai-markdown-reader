@@ -5,8 +5,9 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { NaturalEngine } from './engine/client';
 import { SystemEngine } from './engine/system';
 import { NativeSpeech, type Voice } from './speech';
-import { ModelStore, DEFAULT_VOICE, voiceInfo, type Quality } from './model';
+import { ModelStore, DEFAULT_VOICE, MODEL_FOLDER, migrateVoice, voiceInfo, type Quality } from './model';
 import { nearestSpeed } from './speeds';
+import { migrateSettings } from './migrate';
 
 export interface Settings {
   engine: 'natural' | 'system';
@@ -43,12 +44,17 @@ export class Services implements vscode.Disposable {
   private idle: NodeJS.Timeout | undefined;
   private users = 0;
 
+  /** Settles once settings and a voice downloaded under the old name (Clear Markdown Reader) have moved over. */
+  readonly migrated: Promise<void>;
+
   constructor(readonly context: vscode.ExtensionContext) {
-    this.store = new ModelStore(path.join(context.globalStorageUri.fsPath, 'kokoro-82m-v1.0'));
+    this.store = new ModelStore(path.join(context.globalStorageUri.fsPath, MODEL_FOLDER));
+    const log = (message: string) => this.output.appendLine(message);
+    this.migrated = Promise.allSettled([migrateVoice(context.globalStorageUri.fsPath, log), migrateSettings(context.extension, log)]).then(() => undefined);
   }
 
   settings(): Settings {
-    const config = vscode.workspace.getConfiguration('clearMarkdown');
+    const config = vscode.workspace.getConfiguration('aiMarkdownReader');
     const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, Number.isFinite(value) ? value : min));
     const naturalVoice = config.get<string>('naturalVoice', DEFAULT_VOICE);
     return {
@@ -73,7 +79,7 @@ export class Services implements vscode.Disposable {
   }
 
   async update(key: string, value: unknown): Promise<void> {
-    await vscode.workspace.getConfiguration('clearMarkdown').update(key, value, vscode.ConfigurationTarget.Global);
+    await vscode.workspace.getConfiguration('aiMarkdownReader').update(key, value, vscode.ConfigurationTarget.Global);
   }
 
   threads(setting: number): number {
@@ -96,7 +102,7 @@ export class Services implements vscode.Disposable {
     this.system ??= (async () => {
       const speech = await NativeSpeech.create(this.context.asAbsolutePath('scripts/speak.ps1'));
       const voices = await speech.voices();
-      const directory = await mkdtemp(path.join(os.tmpdir(), 'clear-markdown-'));
+      const directory = await mkdtemp(path.join(os.tmpdir(), 'ai-markdown-reader-'));
       return { engine: new SystemEngine(speech, directory), voices, directory };
     })();
     this.system.catch(() => { this.system = undefined; });
@@ -125,15 +131,15 @@ export class Services implements vscode.Disposable {
   }
 
   position(uri: vscode.Uri): Position | undefined {
-    return this.context.globalState.get<Record<string, Position>>('clearMarkdown.positions', {})[uri.toString()];
+    return this.context.globalState.get<Record<string, Position>>('aiMarkdownReader.positions', {})[uri.toString()];
   }
 
   async savePosition(uri: vscode.Uri, position: Position | undefined): Promise<void> {
-    const positions = { ...this.context.globalState.get<Record<string, Position>>('clearMarkdown.positions', {}) };
+    const positions = { ...this.context.globalState.get<Record<string, Position>>('aiMarkdownReader.positions', {}) };
     if (position) positions[uri.toString()] = position;
     else delete positions[uri.toString()];
     const recent = Object.entries(positions).sort((a, b) => b[1].at - a[1].at).slice(0, 200);
-    await this.context.globalState.update('clearMarkdown.positions', Object.fromEntries(recent));
+    await this.context.globalState.update('aiMarkdownReader.positions', Object.fromEntries(recent));
   }
 
   dispose(): void {

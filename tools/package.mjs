@@ -13,7 +13,7 @@ const vsce = path.join(root, 'node_modules', '@vscode', 'vsce', 'vsce');
 for (const target of targets) {
   if (!ALL.includes(target)) throw new Error(`Unsupported target: ${target}`);
   await copyNative([target]);
-  const output = path.join(root, 'releases', `clear-markdown-reader-${target}-${version}.vsix`);
+  const output = path.join(root, 'releases', `ai-markdown-reader-${target}-${version}.vsix`);
   // Bundles already contain the JavaScript dependencies; only the native runtime is added per platform.
   // vsce runs the prepublish build; tell it which platform's runtime to include.
   execFileSync(process.execPath, [vsce, 'package', '--target', target, '--no-dependencies', '--skip-license', '--out', output],

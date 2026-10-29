@@ -1,0 +1,35 @@
+name: Publish to the VS Code Marketplace
+# Runs when a GitHub release is published, or by hand. Publishing uses Marketplace Trusted Publishing:
+# the publisher "orexii" has a policy for this repository and workflow, so no token is stored here.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  # The CPU runtime is enough; skip ONNX Runtime's optional GPU downloads.
+  ONNXRUNTIME_NODE_INSTALL: skip
+concurrency:
+  group: marketplace-publish
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.repository_owner == 'Orexii'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      # One package per platform: each contains only that platform's native speech runtime.
+      - run: npm run package
+      - run: npx vsce publish --oidc --packagePath releases/*.vsix

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0
+
+- **On the VS Code Marketplace** as `orexii.ai-markdown-reader`: search for **AI Markdown Reader** in the
+  Extensions view. VS Code installs the right package for your computer and keeps it up to date.
+- **The ID now matches the name.** Settings, commands and theme colors moved from `clearMarkdown.*` to
+  `aiMarkdownReader.*`. Your settings and the downloaded voice move over automatically the first time
+  AI Markdown Reader starts, so the voice is not downloaded again. Uninstall Clear Markdown Reader
+  (`orexii.clear-markdown-reader`) afterwards. If you had moved the Read Aloud view, move it again once.
+
 ## 0.7.0
 
 - **Arrow keys move through the text.** In the player, ← / → go to the previous / next paragraph (like the

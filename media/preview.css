@@ -185,28 +185,28 @@ video {
 
 /* Reading position: the same theme colors as the editor highlight (AI Markdown Reader colors). */
 ::highlight(cmr-sentence) {
-  background-color: var(--vscode-clearMarkdown-readingBackground, rgba(55, 148, 255, 0.15));
+  background-color: var(--vscode-aiMarkdownReader-readingBackground, rgba(55, 148, 255, 0.15));
 }
 
 .cmr-sentence {
-  background-color: var(--vscode-clearMarkdown-readingBackground, rgba(55, 148, 255, 0.15));
+  background-color: var(--vscode-aiMarkdownReader-readingBackground, rgba(55, 148, 255, 0.15));
 }
 
 .cmr-word {
   border-radius: 3px;
-  background-color: var(--vscode-clearMarkdown-readingWordBackground, rgba(55, 148, 255, 0.44));
+  background-color: var(--vscode-aiMarkdownReader-readingWordBackground, rgba(55, 148, 255, 0.44));
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
 
 .cmr-block {
   border-radius: 3px;
-  background-color: var(--vscode-clearMarkdown-readingBackground, rgba(55, 148, 255, 0.15));
+  background-color: var(--vscode-aiMarkdownReader-readingBackground, rgba(55, 148, 255, 0.15));
 }
 
 pre.cmr-block,
 table.cmr-block {
-  outline: 2px solid var(--vscode-clearMarkdown-readingWordBackground, rgba(55, 148, 255, 0.44));
+  outline: 2px solid var(--vscode-aiMarkdownReader-readingWordBackground, rgba(55, 148, 255, 0.44));
   outline-offset: 2px;
 }
 

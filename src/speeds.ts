@@ -1,6 +1,6 @@
 /** Every speed the reader supports: quarter steps from a quarter of normal speed to five times. */
 export const ALL_SPEEDS: readonly number[] = Array.from({ length: 20 }, (_, i) => (i + 1) / 4);
-/** The short list offered unless more speeds are turned on (clearMarkdown.expandedSpeeds). */
+/** The short list offered unless more speeds are turned on (aiMarkdownReader.expandedSpeeds). */
 export const BASIC_SPEEDS: readonly number[] = [0.5, 1, 1.5, 2];
 
 /** The supported speed closest to a value (older versions saved other values). */

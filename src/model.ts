@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
-import { mkdir, rename, rm, stat } from 'node:fs/promises';
+import { cp, mkdir, rename, rm, stat } from 'node:fs/promises';
 import * as path from 'node:path';
 
 export const MODEL_REPOSITORY = 'onnx-community/Kokoro-82M-v1.0-ONNX-timestamped';
@@ -182,4 +182,34 @@ export class ModelStore {
   async remove(): Promise<void> {
     await rm(this.root, { recursive: true, force: true });
   }
+}
+
+/** The extension was called Clear Markdown Reader (orexii.clear-markdown-reader) before 0.8. */
+const LEGACY_EXTENSION_ID = 'orexii.clear-markdown-reader';
+export const MODEL_FOLDER = 'kokoro-82m-v1.0';
+
+/**
+ * Moves the natural voice downloaded under the old extension ID, so it is not downloaded again. Falls
+ * back to copying if the old folder is in use (for example by the old extension in another window).
+ */
+export async function migrateVoice(globalStorage: string, log: (message: string) => void): Promise<boolean> {
+  const exists = (file: string) => stat(file).then(() => true, () => false);
+  const target = path.join(globalStorage, MODEL_FOLDER);
+  const source = path.join(path.dirname(globalStorage), LEGACY_EXTENSION_ID, MODEL_FOLDER);
+  if (await exists(target) || !await exists(source)) return false;
+  await mkdir(globalStorage, { recursive: true });
+  try {
+    await rename(source, target);
+  } catch {
+    try {
+      await cp(source, `${target}.partial`, { recursive: true });
+      await rename(`${target}.partial`, target);
+    } catch (error) {
+      await rm(`${target}.partial`, { recursive: true, force: true }).catch(() => undefined);
+      log(`Could not move the downloaded voice from the old extension: ${error instanceof Error ? error.message : String(error)}`);
+      return false;
+    }
+  }
+  log('Moved the downloaded natural voice from the old extension, so it does not need downloading again.');
+  return true;
 }

@@ -26,11 +26,11 @@ const clock = (seconds: number) => {
 
 /** Small player controls in the status bar, plus the context keys that switch the editor title buttons. */
 export class Controls implements vscode.Disposable {
-  private readonly back = this.item('clearMarkdown.statusBack', 'Read Aloud: Back', 'clearMarkdown.skipBack', 1003);
-  private readonly play = this.item('clearMarkdown.statusPlay', 'Read Aloud: Play or Pause', 'clearMarkdown.togglePlay', 1002);
-  private readonly forward = this.item('clearMarkdown.statusForward', 'Read Aloud: Forward', 'clearMarkdown.skipForward', 1001);
-  private readonly speed = this.item('clearMarkdown.statusSpeed', 'Read Aloud: Speed', 'clearMarkdown.chooseSpeed', 1000);
-  private readonly follow = this.item('clearMarkdown.statusFollow', 'Read Aloud: Back to Reading', 'clearMarkdown.backToReading', 999);
+  private readonly back = this.item('aiMarkdownReader.statusBack', 'Read Aloud: Back', 'aiMarkdownReader.skipBack', 1003);
+  private readonly play = this.item('aiMarkdownReader.statusPlay', 'Read Aloud: Play or Pause', 'aiMarkdownReader.togglePlay', 1002);
+  private readonly forward = this.item('aiMarkdownReader.statusForward', 'Read Aloud: Forward', 'aiMarkdownReader.skipForward', 1001);
+  private readonly speed = this.item('aiMarkdownReader.statusSpeed', 'Read Aloud: Speed', 'aiMarkdownReader.chooseSpeed', 1000);
+  private readonly follow = this.item('aiMarkdownReader.statusFollow', 'Read Aloud: Back to Reading', 'aiMarkdownReader.backToReading', 999);
   private context = { active: false, playing: false, uri: '' };
 
   private item(id: string, name: string, command: string, priority: number): vscode.StatusBarItem {
@@ -56,9 +56,9 @@ export class Controls implements vscode.Disposable {
     const time = `${clock(state.elapsed)} / ${clock(state.total)}`;
     this.play.text = state.playing && state.waiting ? `$(loading~spin) ${time}` : `${state.playing ? '$(debug-pause)' : '$(play)'} ${time}`;
     const tooltip = new vscode.MarkdownString(`**${state.playing ? 'Reading' : 'Paused'}:** ${escape(file)}\n\n` +
-      '[Stop](command:clearMarkdown.stop "Stop reading") · [Back to reading](command:clearMarkdown.backToReading "Scroll to the sentence being read") · ' +
-      '[Player](command:clearMarkdown.showPlayer "Show the Read Aloud player")');
-    tooltip.isTrusted = { enabledCommands: ['clearMarkdown.stop', 'clearMarkdown.backToReading', 'clearMarkdown.showPlayer'] };
+      '[Stop](command:aiMarkdownReader.stop "Stop reading") · [Back to reading](command:aiMarkdownReader.backToReading "Scroll to the sentence being read") · ' +
+      '[Player](command:aiMarkdownReader.showPlayer "Show the Read Aloud player")');
+    tooltip.isTrusted = { enabledCommands: ['aiMarkdownReader.stop', 'aiMarkdownReader.backToReading', 'aiMarkdownReader.showPlayer'] };
     tooltip.supportThemeIcons = true;
     this.play.tooltip = tooltip;
     this.speed.text = formatSpeed(state.rate);
@@ -73,9 +73,9 @@ export class Controls implements vscode.Disposable {
   }
 
   private setContext(active: boolean, playing: boolean, uri: string): void {
-    if (active !== this.context.active) void vscode.commands.executeCommand('setContext', 'clearMarkdown.playerActive', active);
-    if (playing !== this.context.playing) void vscode.commands.executeCommand('setContext', 'clearMarkdown.playing', playing);
-    if (uri !== this.context.uri) void vscode.commands.executeCommand('setContext', 'clearMarkdown.readingResources', uri ? [uri] : []);
+    if (active !== this.context.active) void vscode.commands.executeCommand('setContext', 'aiMarkdownReader.playerActive', active);
+    if (playing !== this.context.playing) void vscode.commands.executeCommand('setContext', 'aiMarkdownReader.playing', playing);
+    if (uri !== this.context.uri) void vscode.commands.executeCommand('setContext', 'aiMarkdownReader.readingResources', uri ? [uri] : []);
     this.context = { active, playing, uri };
   }
 

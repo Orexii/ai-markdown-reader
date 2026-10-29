@@ -1,5 +1,5 @@
 {
-  "name": "clear-markdown-reader",
+  "name": "ai-markdown-reader",
   "displayName": "AI Markdown Reader - Read Aloud",
   "description": "Listen to Markdown with a natural AI voice that runs on your computer. Each sentence and word is highlighted as it is read, in the editor or the rendered preview; tables and lists sound natural; small podcast-style controls sit in the status bar.",
   "icon": "media/extension-icon.png",
@@ -7,12 +7,12 @@
     "color": "#1c2742",
     "theme": "dark"
   },
-  "version": "0.7.0",
+  "version": "0.8.0",
   "publisher": "orexii",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Orexii/clear-markdown-reader.git"
+    "url": "https://github.com/Orexii/ai-markdown-reader.git"
   },
   "engines": {
     "vscode": "^1.100.0"
@@ -51,165 +51,165 @@
   "contributes": {
     "commands": [
       {
-        "command": "clearMarkdown.read",
+        "command": "aiMarkdownReader.read",
         "title": "Read Aloud",
         "category": "AI Markdown Reader",
         "icon": "$(unmute)"
       },
       {
-        "command": "clearMarkdown.readFromTop",
+        "command": "aiMarkdownReader.readFromTop",
         "title": "Read Aloud from the Start",
         "category": "AI Markdown Reader"
       },
       {
-        "command": "clearMarkdown.readFromCursor",
+        "command": "aiMarkdownReader.readFromCursor",
         "title": "Read Aloud from Cursor",
         "category": "AI Markdown Reader"
       },
       {
-        "command": "clearMarkdown.readSelection",
+        "command": "aiMarkdownReader.readSelection",
         "title": "Read Selection Aloud",
         "category": "AI Markdown Reader"
       },
       {
-        "command": "clearMarkdown.openPreview",
+        "command": "aiMarkdownReader.openPreview",
         "title": "Open Read Aloud Preview",
         "category": "AI Markdown Reader",
         "icon": "$(open-preview)"
       },
       {
-        "command": "clearMarkdown.openPreviewToSide",
+        "command": "aiMarkdownReader.openPreviewToSide",
         "title": "Open Read Aloud Preview to the Side",
         "category": "AI Markdown Reader",
         "icon": "$(open-preview)"
       },
       {
-        "command": "clearMarkdown.readFromHere",
+        "command": "aiMarkdownReader.readFromHere",
         "title": "Read Aloud from Here",
         "category": "AI Markdown Reader"
       },
       {
-        "command": "clearMarkdown.showSource",
+        "command": "aiMarkdownReader.showSource",
         "title": "Show Source",
         "category": "AI Markdown Reader",
         "icon": "$(go-to-file)"
       },
       {
-        "command": "clearMarkdown.togglePlay",
+        "command": "aiMarkdownReader.togglePlay",
         "title": "Play or Pause Reading",
         "category": "AI Markdown Reader"
       },
       {
-        "command": "clearMarkdown.play",
+        "command": "aiMarkdownReader.play",
         "title": "Resume Reading",
         "category": "AI Markdown Reader",
         "icon": "$(play)"
       },
       {
-        "command": "clearMarkdown.pause",
+        "command": "aiMarkdownReader.pause",
         "title": "Pause Reading",
         "category": "AI Markdown Reader",
         "icon": "$(debug-pause)"
       },
       {
-        "command": "clearMarkdown.stop",
+        "command": "aiMarkdownReader.stop",
         "title": "Stop Reading",
         "category": "AI Markdown Reader",
         "icon": "$(primitive-square)"
       },
       {
-        "command": "clearMarkdown.skipBack",
+        "command": "aiMarkdownReader.skipBack",
         "title": "Skip Back",
         "category": "AI Markdown Reader"
       },
       {
-        "command": "clearMarkdown.skipForward",
+        "command": "aiMarkdownReader.skipForward",
         "title": "Skip Forward",
         "category": "AI Markdown Reader"
       },
       {
-        "command": "clearMarkdown.previousSentence",
+        "command": "aiMarkdownReader.previousSentence",
         "title": "Previous Sentence",
         "category": "AI Markdown Reader"
       },
       {
-        "command": "clearMarkdown.nextSentence",
+        "command": "aiMarkdownReader.nextSentence",
         "title": "Next Sentence",
         "category": "AI Markdown Reader"
       },
       {
-        "command": "clearMarkdown.previousParagraph",
+        "command": "aiMarkdownReader.previousParagraph",
         "title": "Previous Paragraph",
         "category": "AI Markdown Reader"
       },
       {
-        "command": "clearMarkdown.nextParagraph",
+        "command": "aiMarkdownReader.nextParagraph",
         "title": "Next Paragraph",
         "category": "AI Markdown Reader"
       },
       {
-        "command": "clearMarkdown.previousSection",
+        "command": "aiMarkdownReader.previousSection",
         "title": "Previous Section",
         "category": "AI Markdown Reader"
       },
       {
-        "command": "clearMarkdown.nextSection",
+        "command": "aiMarkdownReader.nextSection",
         "title": "Next Section",
         "category": "AI Markdown Reader"
       },
       {
-        "command": "clearMarkdown.faster",
+        "command": "aiMarkdownReader.faster",
         "title": "Read Faster",
         "category": "AI Markdown Reader"
       },
       {
-        "command": "clearMarkdown.slower",
+        "command": "aiMarkdownReader.slower",
         "title": "Read Slower",
         "category": "AI Markdown Reader"
       },
       {
-        "command": "clearMarkdown.chooseSpeed",
+        "command": "aiMarkdownReader.chooseSpeed",
         "title": "Choose Reading Speed",
         "category": "AI Markdown Reader"
       },
       {
-        "command": "clearMarkdown.chooseVoice",
+        "command": "aiMarkdownReader.chooseVoice",
         "title": "Choose Voice",
         "category": "AI Markdown Reader"
       },
       {
-        "command": "clearMarkdown.backToReading",
+        "command": "aiMarkdownReader.backToReading",
         "title": "Scroll Back to the Reading Position",
         "category": "AI Markdown Reader"
       },
       {
-        "command": "clearMarkdown.showPlayer",
+        "command": "aiMarkdownReader.showPlayer",
         "title": "Show Player",
         "category": "AI Markdown Reader"
       },
       {
-        "command": "clearMarkdown.refreshReading",
+        "command": "aiMarkdownReader.refreshReading",
         "title": "Update Reading After Edits",
         "category": "AI Markdown Reader"
       },
       {
-        "command": "clearMarkdown.describeBlock",
+        "command": "aiMarkdownReader.describeBlock",
         "title": "Describe Table or Code with Copilot",
         "category": "AI Markdown Reader",
         "icon": "$(sparkle)"
       },
       {
-        "command": "clearMarkdown.restoreBlock",
+        "command": "aiMarkdownReader.restoreBlock",
         "title": "Use the Original Narration",
         "category": "AI Markdown Reader"
       },
       {
-        "command": "clearMarkdown.installNaturalVoice",
+        "command": "aiMarkdownReader.installNaturalVoice",
         "title": "Download Natural Voice",
         "category": "AI Markdown Reader"
       },
       {
-        "command": "clearMarkdown.removeNaturalVoice",
+        "command": "aiMarkdownReader.removeNaturalVoice",
         "title": "Remove Downloaded Natural Voice",
         "category": "AI Markdown Reader"
       }
@@ -217,205 +217,205 @@
     "menus": {
       "editor/title": [
         {
-          "command": "clearMarkdown.read",
-          "when": "(editorLangId == markdown || activeCustomEditorId == 'vscode.markdown.preview.editor' || activeCustomEditorId == 'clearMarkdown.preview' || activeWebviewPanelId == 'markdown.preview') && resource not in clearMarkdown.readingResources",
+          "command": "aiMarkdownReader.read",
+          "when": "(editorLangId == markdown || activeCustomEditorId == 'vscode.markdown.preview.editor' || activeCustomEditorId == 'aiMarkdownReader.preview' || activeWebviewPanelId == 'markdown.preview') && resource not in aiMarkdownReader.readingResources",
           "group": "navigation"
         },
         {
-          "command": "clearMarkdown.pause",
-          "when": "resource in clearMarkdown.readingResources && clearMarkdown.playing",
+          "command": "aiMarkdownReader.pause",
+          "when": "resource in aiMarkdownReader.readingResources && aiMarkdownReader.playing",
           "group": "navigation@1"
         },
         {
-          "command": "clearMarkdown.play",
-          "when": "resource in clearMarkdown.readingResources && !clearMarkdown.playing",
+          "command": "aiMarkdownReader.play",
+          "when": "resource in aiMarkdownReader.readingResources && !aiMarkdownReader.playing",
           "group": "navigation@1"
         },
         {
-          "command": "clearMarkdown.stop",
-          "when": "resource in clearMarkdown.readingResources",
+          "command": "aiMarkdownReader.stop",
+          "when": "resource in aiMarkdownReader.readingResources",
           "group": "navigation@2"
         },
         {
-          "command": "clearMarkdown.showSource",
-          "when": "activeCustomEditorId == 'clearMarkdown.preview'",
+          "command": "aiMarkdownReader.showSource",
+          "when": "activeCustomEditorId == 'aiMarkdownReader.preview'",
           "group": "navigation@3"
         }
       ],
       "view/title": [
         {
-          "command": "clearMarkdown.stop",
-          "when": "view == clearMarkdown.player && clearMarkdown.playerActive",
+          "command": "aiMarkdownReader.stop",
+          "when": "view == aiMarkdownReader.player && aiMarkdownReader.playerActive",
           "group": "navigation"
         }
       ],
       "editor/context": [
         {
-          "command": "clearMarkdown.readSelection",
+          "command": "aiMarkdownReader.readSelection",
           "when": "editorLangId == markdown && editorHasSelection",
           "group": "navigation@1"
         },
         {
-          "command": "clearMarkdown.readFromCursor",
+          "command": "aiMarkdownReader.readFromCursor",
           "when": "editorLangId == markdown && !editorHasSelection",
           "group": "navigation@1"
         }
       ],
       "explorer/context": [
         {
-          "command": "clearMarkdown.read",
+          "command": "aiMarkdownReader.read",
           "when": "resourceLangId == markdown",
           "group": "navigation"
         },
         {
-          "command": "clearMarkdown.openPreview",
+          "command": "aiMarkdownReader.openPreview",
           "when": "resourceLangId == markdown",
           "group": "navigation"
         }
       ],
       "commandPalette": [
         {
-          "command": "clearMarkdown.togglePlay",
-          "when": "clearMarkdown.playerActive || (editorLangId == markdown || activeCustomEditorId == 'vscode.markdown.preview.editor' || activeCustomEditorId == 'clearMarkdown.preview' || activeWebviewPanelId == 'markdown.preview')"
+          "command": "aiMarkdownReader.togglePlay",
+          "when": "aiMarkdownReader.playerActive || (editorLangId == markdown || activeCustomEditorId == 'vscode.markdown.preview.editor' || activeCustomEditorId == 'aiMarkdownReader.preview' || activeWebviewPanelId == 'markdown.preview')"
         },
         {
-          "command": "clearMarkdown.play",
-          "when": "clearMarkdown.playerActive"
+          "command": "aiMarkdownReader.play",
+          "when": "aiMarkdownReader.playerActive"
         },
         {
-          "command": "clearMarkdown.pause",
-          "when": "clearMarkdown.playerActive"
+          "command": "aiMarkdownReader.pause",
+          "when": "aiMarkdownReader.playerActive"
         },
         {
-          "command": "clearMarkdown.stop",
-          "when": "clearMarkdown.playerActive"
+          "command": "aiMarkdownReader.stop",
+          "when": "aiMarkdownReader.playerActive"
         },
         {
-          "command": "clearMarkdown.skipBack",
-          "when": "clearMarkdown.playerActive"
+          "command": "aiMarkdownReader.skipBack",
+          "when": "aiMarkdownReader.playerActive"
         },
         {
-          "command": "clearMarkdown.skipForward",
-          "when": "clearMarkdown.playerActive"
+          "command": "aiMarkdownReader.skipForward",
+          "when": "aiMarkdownReader.playerActive"
         },
         {
-          "command": "clearMarkdown.previousSentence",
-          "when": "clearMarkdown.playerActive"
+          "command": "aiMarkdownReader.previousSentence",
+          "when": "aiMarkdownReader.playerActive"
         },
         {
-          "command": "clearMarkdown.nextSentence",
-          "when": "clearMarkdown.playerActive"
+          "command": "aiMarkdownReader.nextSentence",
+          "when": "aiMarkdownReader.playerActive"
         },
         {
-          "command": "clearMarkdown.previousParagraph",
-          "when": "clearMarkdown.playerActive"
+          "command": "aiMarkdownReader.previousParagraph",
+          "when": "aiMarkdownReader.playerActive"
         },
         {
-          "command": "clearMarkdown.nextParagraph",
-          "when": "clearMarkdown.playerActive"
+          "command": "aiMarkdownReader.nextParagraph",
+          "when": "aiMarkdownReader.playerActive"
         },
         {
-          "command": "clearMarkdown.previousSection",
-          "when": "clearMarkdown.playerActive"
+          "command": "aiMarkdownReader.previousSection",
+          "when": "aiMarkdownReader.playerActive"
         },
         {
-          "command": "clearMarkdown.nextSection",
-          "when": "clearMarkdown.playerActive"
+          "command": "aiMarkdownReader.nextSection",
+          "when": "aiMarkdownReader.playerActive"
         },
         {
-          "command": "clearMarkdown.faster",
-          "when": "clearMarkdown.playerActive"
+          "command": "aiMarkdownReader.faster",
+          "when": "aiMarkdownReader.playerActive"
         },
         {
-          "command": "clearMarkdown.slower",
-          "when": "clearMarkdown.playerActive"
+          "command": "aiMarkdownReader.slower",
+          "when": "aiMarkdownReader.playerActive"
         },
         {
-          "command": "clearMarkdown.backToReading",
-          "when": "clearMarkdown.playerActive"
+          "command": "aiMarkdownReader.backToReading",
+          "when": "aiMarkdownReader.playerActive"
         },
         {
-          "command": "clearMarkdown.refreshReading",
-          "when": "clearMarkdown.playerActive"
+          "command": "aiMarkdownReader.refreshReading",
+          "when": "aiMarkdownReader.playerActive"
         },
         {
-          "command": "clearMarkdown.describeBlock",
-          "when": "clearMarkdown.playerActive"
+          "command": "aiMarkdownReader.describeBlock",
+          "when": "aiMarkdownReader.playerActive"
         },
         {
-          "command": "clearMarkdown.restoreBlock",
+          "command": "aiMarkdownReader.restoreBlock",
           "when": "false"
         },
         {
-          "command": "clearMarkdown.read",
-          "when": "(editorLangId == markdown || activeCustomEditorId == 'vscode.markdown.preview.editor' || activeCustomEditorId == 'clearMarkdown.preview' || activeWebviewPanelId == 'markdown.preview')"
+          "command": "aiMarkdownReader.read",
+          "when": "(editorLangId == markdown || activeCustomEditorId == 'vscode.markdown.preview.editor' || activeCustomEditorId == 'aiMarkdownReader.preview' || activeWebviewPanelId == 'markdown.preview')"
         },
         {
-          "command": "clearMarkdown.readFromTop",
-          "when": "(editorLangId == markdown || activeCustomEditorId == 'vscode.markdown.preview.editor' || activeCustomEditorId == 'clearMarkdown.preview' || activeWebviewPanelId == 'markdown.preview')"
+          "command": "aiMarkdownReader.readFromTop",
+          "when": "(editorLangId == markdown || activeCustomEditorId == 'vscode.markdown.preview.editor' || activeCustomEditorId == 'aiMarkdownReader.preview' || activeWebviewPanelId == 'markdown.preview')"
         },
         {
-          "command": "clearMarkdown.readFromCursor",
+          "command": "aiMarkdownReader.readFromCursor",
           "when": "editorLangId == markdown"
         },
         {
-          "command": "clearMarkdown.readSelection",
+          "command": "aiMarkdownReader.readSelection",
           "when": "editorLangId == markdown && editorHasSelection"
         },
         {
-          "command": "clearMarkdown.openPreview",
-          "when": "(editorLangId == markdown || activeCustomEditorId == 'vscode.markdown.preview.editor' || activeCustomEditorId == 'clearMarkdown.preview' || activeWebviewPanelId == 'markdown.preview')"
+          "command": "aiMarkdownReader.openPreview",
+          "when": "(editorLangId == markdown || activeCustomEditorId == 'vscode.markdown.preview.editor' || activeCustomEditorId == 'aiMarkdownReader.preview' || activeWebviewPanelId == 'markdown.preview')"
         },
         {
-          "command": "clearMarkdown.openPreviewToSide",
-          "when": "(editorLangId == markdown || activeCustomEditorId == 'vscode.markdown.preview.editor' || activeCustomEditorId == 'clearMarkdown.preview' || activeWebviewPanelId == 'markdown.preview')"
+          "command": "aiMarkdownReader.openPreviewToSide",
+          "when": "(editorLangId == markdown || activeCustomEditorId == 'vscode.markdown.preview.editor' || activeCustomEditorId == 'aiMarkdownReader.preview' || activeWebviewPanelId == 'markdown.preview')"
         },
         {
-          "command": "clearMarkdown.readFromHere",
+          "command": "aiMarkdownReader.readFromHere",
           "when": "false"
         },
         {
-          "command": "clearMarkdown.showSource",
-          "when": "activeCustomEditorId == 'clearMarkdown.preview'"
+          "command": "aiMarkdownReader.showSource",
+          "when": "activeCustomEditorId == 'aiMarkdownReader.preview'"
         }
       ],
       "webview/context": [
         {
-          "command": "clearMarkdown.readFromHere",
-          "when": "webviewId == 'clearMarkdown.preview'",
+          "command": "aiMarkdownReader.readFromHere",
+          "when": "webviewId == 'aiMarkdownReader.preview'",
           "group": "navigation"
         }
       ]
     },
     "keybindings": [
       {
-        "command": "clearMarkdown.readFromCursor",
+        "command": "aiMarkdownReader.readFromCursor",
         "key": "ctrl+alt+enter",
         "mac": "cmd+alt+enter",
         "when": "editorTextFocus && editorLangId == markdown && !findWidgetVisible"
       },
       {
-        "command": "clearMarkdown.togglePlay",
+        "command": "aiMarkdownReader.togglePlay",
         "key": "ctrl+alt+p",
         "mac": "ctrl+cmd+p",
-        "when": "clearMarkdown.playerActive"
+        "when": "aiMarkdownReader.playerActive"
       },
       {
-        "command": "clearMarkdown.skipBack",
+        "command": "aiMarkdownReader.skipBack",
         "key": "ctrl+alt+,",
         "mac": "ctrl+cmd+,",
-        "when": "clearMarkdown.playerActive"
+        "when": "aiMarkdownReader.playerActive"
       },
       {
-        "command": "clearMarkdown.skipForward",
+        "command": "aiMarkdownReader.skipForward",
         "key": "ctrl+alt+.",
         "mac": "ctrl+cmd+.",
-        "when": "clearMarkdown.playerActive"
+        "when": "aiMarkdownReader.playerActive"
       }
     ],
     "colors": [
       {
-        "id": "clearMarkdown.readingBackground",
+        "id": "aiMarkdownReader.readingBackground",
         "description": "Background of the sentence being read aloud in the editor.",
         "defaults": {
           "dark": "#3794ff26",
@@ -425,7 +425,7 @@
         }
       },
       {
-        "id": "clearMarkdown.readingWordBackground",
+        "id": "aiMarkdownReader.readingWordBackground",
         "description": "Background of the word being spoken in the editor.",
         "defaults": {
           "dark": "#3794ff70",
@@ -438,7 +438,7 @@
     "configuration": {
       "title": "AI Markdown Reader",
       "properties": {
-        "clearMarkdown.engine": {
+        "aiMarkdownReader.engine": {
           "type": "string",
           "enum": [
             "natural",
@@ -451,7 +451,7 @@
           ],
           "description": "Which speech engine reads documents."
         },
-        "clearMarkdown.naturalVoice": {
+        "aiMarkdownReader.naturalVoice": {
           "type": "string",
           "enum": [
             "af_heart",
@@ -516,7 +516,7 @@
           "default": "af_heart",
           "description": "Natural voice. Grades are the model authors' quality estimates; Heart is the best."
         },
-        "clearMarkdown.naturalQuality": {
+        "aiMarkdownReader.naturalQuality": {
           "type": "string",
           "enum": [
             "best",
@@ -529,52 +529,52 @@
           ],
           "description": "Which natural voice model to download and use."
         },
-        "clearMarkdown.systemVoice": {
+        "aiMarkdownReader.systemVoice": {
           "type": "string",
           "default": "",
           "description": "Operating-system voice used by the system engine. Empty uses the default voice."
         },
-        "clearMarkdown.voice": {
+        "aiMarkdownReader.voice": {
           "type": "string",
           "default": "",
-          "deprecationMessage": "Replaced by clearMarkdown.systemVoice.",
-          "markdownDeprecationMessage": "Replaced by `#clearMarkdown.systemVoice#`."
+          "deprecationMessage": "Replaced by aiMarkdownReader.systemVoice.",
+          "markdownDeprecationMessage": "Replaced by `#aiMarkdownReader.systemVoice#`."
         },
-        "clearMarkdown.rate": {
+        "aiMarkdownReader.rate": {
           "type": "number",
           "default": 1,
           "minimum": 0.25,
           "maximum": 5,
           "multipleOf": 0.25,
-          "markdownDescription": "Reading speed, in quarter steps from 0.25 to 5. Pitch stays natural. The speed menu offers 0.5×, 1×, 1.5× and 2× unless `#clearMarkdown.expandedSpeeds#` is on."
+          "markdownDescription": "Reading speed, in quarter steps from 0.25 to 5. Pitch stays natural. The speed menu offers 0.5×, 1×, 1.5× and 2× unless `#aiMarkdownReader.expandedSpeeds#` is on."
         },
-        "clearMarkdown.expandedSpeeds": {
+        "aiMarkdownReader.expandedSpeeds": {
           "type": "boolean",
           "default": false,
           "description": "Offer every speed from 0.25× to 5× in quarter steps. When off, the speed menu has 0.5×, 1×, 1.5× and 2×."
         },
-        "clearMarkdown.volume": {
+        "aiMarkdownReader.volume": {
           "type": "integer",
           "default": 100,
           "minimum": 0,
           "maximum": 100,
           "description": "Reading volume in percent. The volume slider in the Read Aloud player changes this."
         },
-        "clearMarkdown.skipBackSeconds": {
+        "aiMarkdownReader.skipBackSeconds": {
           "type": "number",
           "default": 10,
           "minimum": 1,
           "maximum": 120,
           "description": "Seconds to skip back (back button, ← or J in the player, Ctrl+Alt+, anywhere)."
         },
-        "clearMarkdown.skipForwardSeconds": {
+        "aiMarkdownReader.skipForwardSeconds": {
           "type": "number",
           "default": 30,
           "minimum": 1,
           "maximum": 300,
           "description": "Seconds to skip forward (forward button, → or L in the player, Ctrl+Alt+. anywhere)."
         },
-        "clearMarkdown.tableMode": {
+        "aiMarkdownReader.tableMode": {
           "type": "string",
           "enum": [
             "rows",
@@ -587,7 +587,7 @@
           ],
           "description": "How tables are read."
         },
-        "clearMarkdown.codeBlocks": {
+        "aiMarkdownReader.codeBlocks": {
           "type": "string",
           "enum": [
             "announce",
@@ -602,22 +602,22 @@
           ],
           "description": "How fenced code blocks are read."
         },
-        "clearMarkdown.followInEditor": {
+        "aiMarkdownReader.followInEditor": {
           "type": "boolean",
           "default": true,
           "description": "Scroll the editor and the Read Aloud Preview to keep the sentence being read in view. Scrolling away pauses this until you scroll back."
         },
-        "clearMarkdown.highlightWords": {
+        "aiMarkdownReader.highlightWords": {
           "type": "boolean",
           "default": true,
           "description": "Highlight each word as it is spoken, as well as the sentence, in the editor and the Read Aloud Preview."
         },
-        "clearMarkdown.replaceMarkdownPreview": {
+        "aiMarkdownReader.replaceMarkdownPreview": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "When you start reading while VS Code's Markdown Preview is open, show the **Read Aloud Preview** in its place. VS Code's preview cannot show which words are being read; the Read Aloud Preview looks the same and highlights them."
         },
-        "clearMarkdown.pronunciations": {
+        "aiMarkdownReader.pronunciations": {
           "type": "object",
           "default": {},
           "additionalProperties": {
@@ -625,7 +625,7 @@
           },
           "markdownDescription": "How to say particular words, e.g. `{ \"Kusto\": \"kuss toe\", \"nginx\": \"engine x\", \"Rakeem\": \"/ɹɑːkˈiːm/\" }`. Values in slashes are IPA phonemes (natural voice only). Workspace settings can share a dictionary with your team."
         },
-        "clearMarkdown.threads": {
+        "aiMarkdownReader.threads": {
           "type": "number",
           "default": 0,
           "minimum": 0,
@@ -638,7 +638,7 @@
       "explorer": [
         {
           "type": "webview",
-          "id": "clearMarkdown.player",
+          "id": "aiMarkdownReader.player",
           "name": "Read Aloud",
           "contextualTitle": "AI Markdown Reader",
           "icon": "media/icon.svg",
@@ -648,7 +648,7 @@
     },
     "customEditors": [
       {
-        "viewType": "clearMarkdown.preview",
+        "viewType": "aiMarkdownReader.preview",
         "displayName": "Read Aloud Preview",
         "selector": [
           {
@@ -685,7 +685,7 @@
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^22.0.0",
     "@types/vscode": "^1.100.0",
-    "@vscode/vsce": "^3.6.0",
+    "@vscode/vsce": "^4.1.0",
     "esbuild": "^0.25.0",
     "jsdom": "^26.0.0",
     "playwright-core": "1.64.1",

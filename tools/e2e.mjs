@@ -32,12 +32,15 @@ const temp = await hostTemp();
 try {
   const extension = path.join(temp, 'extension');
   for (const item of ['package.json', 'dist', 'media', 'scripts', 'bin', 'out', 'examples', 'lexicon']) await cp(path.join(root, item), path.join(extension, item), { recursive: true });
-  const storage = path.join(temp, 'profile', 'User', 'globalStorage', 'orexii.clear-markdown-reader', 'kokoro-82m-v1.0');
+  // Play mode installs the voice and settings where Clear Markdown Reader (the old name) kept them, to test the move.
+  const legacy = args.mode !== 'gesture';
+  const storage = path.join(temp, 'profile', 'User', 'globalStorage', legacy ? 'orexii.clear-markdown-reader' : 'orexii.ai-markdown-reader', 'kokoro-82m-v1.0');
   await mkdir(path.join(storage, 'voices'), { recursive: true });
   await cp(path.join(args.model, 'onnx', modelFile), path.join(storage, modelFile));
   await cp(path.join(args.model, 'voices', 'af_heart.bin'), path.join(storage, 'voices', 'af_heart.bin'));
   await writeFile(path.join(temp, 'profile', 'User', 'settings.json'), JSON.stringify({
-    'clearMarkdown.naturalQuality': quality, 'security.workspace.trust.enabled': false, 'workbench.startupEditor': 'none'
+    [legacy ? 'clearMarkdown.naturalQuality' : 'aiMarkdownReader.naturalQuality']: quality, ...(legacy ? { 'clearMarkdown.volume': 90 } : {}),
+    'security.workspace.trust.enabled': false, 'workbench.startupEditor': 'none'
   }));
   const vscodeArgs = [
     '--user-data-dir', toHost(path.join(temp, 'profile')), '--extensions-dir', toHost(path.join(temp, 'extensions')),

@@ -110,12 +110,12 @@ export function activate(context: vscode.ExtensionContext): void {
   };
   const register = (id: string, handler: (...args: never[]) => unknown) => context.subscriptions.push(vscode.commands.registerCommand(id, handler));
 
-  register('clearMarkdown.read', open('resume'));
-  register('clearMarkdown.readFromTop', open('top'));
-  register('clearMarkdown.readFromCursor', open('cursor'));
-  register('clearMarkdown.readSelection', open('top', true));
+  register('aiMarkdownReader.read', open('resume'));
+  register('aiMarkdownReader.readFromTop', open('top'));
+  register('aiMarkdownReader.readFromCursor', open('cursor'));
+  register('aiMarkdownReader.readSelection', open('top', true));
   for (const action of TRANSPORT) {
-    register(`clearMarkdown.${action}`, () => {
+    register(`aiMarkdownReader.${action}`, () => {
       if (reader.active) reader.command(action);
       else if (action === 'togglePlay' || action === 'play') void open('resume')();
     });
@@ -128,10 +128,10 @@ export function activate(context: vscode.ExtensionContext): void {
       report(error);
     }
   };
-  register('clearMarkdown.openPreview', openPreview(vscode.ViewColumn.Active));
-  register('clearMarkdown.openPreviewToSide', openPreview(vscode.ViewColumn.Beside));
-  register('clearMarkdown.readFromHere', () => previews.readFromContext());
-  register('clearMarkdown.showSource', async () => {
+  register('aiMarkdownReader.openPreview', openPreview(vscode.ViewColumn.Active));
+  register('aiMarkdownReader.openPreviewToSide', openPreview(vscode.ViewColumn.Beside));
+  register('aiMarkdownReader.readFromHere', () => previews.readFromContext());
+  register('aiMarkdownReader.showSource', async () => {
     const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
     if (input instanceof vscode.TabInputCustom) await vscode.window.showTextDocument(input.uri, { viewColumn: vscode.ViewColumn.Beside });
   });
@@ -146,17 +146,17 @@ export function activate(context: vscode.ExtensionContext): void {
       report(error);
     }
   }));
-  register('clearMarkdown.stop', () => reader.stop());
-  register('clearMarkdown.backToReading', () => reader.backToReading());
-  register('clearMarkdown.showPlayer', () => view.reveal(false));
-  register('clearMarkdown.refreshReading', () => {
+  register('aiMarkdownReader.stop', () => reader.stop());
+  register('aiMarkdownReader.backToReading', () => reader.backToReading());
+  register('aiMarkdownReader.showPlayer', () => view.reveal(false));
+  register('aiMarkdownReader.refreshReading', () => {
     try {
       reader.refresh();
     } catch (error) {
       report(error);
     }
   });
-  register('clearMarkdown.chooseSpeed', async () => {
+  register('aiMarkdownReader.chooseSpeed', async () => {
     const expanded = services.settings().expandedSpeeds;
     type Item = vscode.QuickPickItem & { speed?: number; toggle?: boolean };
     const speeds: Item[] = speedChoices(expanded, reader.speed).map(speed => ({ label: formatSpeed(speed), description: speed === reader.speed ? 'current' : undefined, speed }));
@@ -174,10 +174,10 @@ export function activate(context: vscode.ExtensionContext): void {
     pick.dispose();
     if (picked?.toggle) {
       await services.update('expandedSpeeds', !expanded);
-      await vscode.commands.executeCommand('clearMarkdown.chooseSpeed');
+      await vscode.commands.executeCommand('aiMarkdownReader.chooseSpeed');
     } else if (picked?.speed !== undefined) reader.setRate(picked.speed);
   });
-  register('clearMarkdown.chooseVoice', async () => {
+  register('aiMarkdownReader.chooseVoice', async () => {
     try {
       const settings = services.settings();
       const choices = reader.voiceChoices();
@@ -196,7 +196,7 @@ export function activate(context: vscode.ExtensionContext): void {
       report(error);
     }
   });
-  register('clearMarkdown.describeBlock', async (resource?: unknown, block?: unknown) => {
+  register('aiMarkdownReader.describeBlock', async (resource?: unknown, block?: unknown) => {
     try {
       let uri = resource instanceof vscode.Uri ? resource : undefined;
       let index = typeof block === 'number' ? block : undefined;
@@ -213,10 +213,11 @@ export function activate(context: vscode.ExtensionContext): void {
       report(error);
     }
   });
-  register('clearMarkdown.restoreBlock', (resource?: unknown, block?: unknown) => {
+  register('aiMarkdownReader.restoreBlock', (resource?: unknown, block?: unknown) => {
     if (resource instanceof vscode.Uri && typeof block === 'number') reader.restore(resource, block);
   });
-  register('clearMarkdown.installNaturalVoice', async () => {
+  register('aiMarkdownReader.installNaturalVoice', async () => {
+    await services.migrated;
     const settings = services.settings();
     const size = Math.round(MODELS[settings.quality].size / 1e6);
     try {
@@ -240,7 +241,7 @@ export function activate(context: vscode.ExtensionContext): void {
       report(error);
     }
   });
-  register('clearMarkdown.removeNaturalVoice', async () => {
+  register('aiMarkdownReader.removeNaturalVoice', async () => {
     const answer = await vscode.window.showWarningMessage('Remove the downloaded natural voice model from this computer?', { modal: true }, 'Remove');
     if (answer !== 'Remove') return;
     await reader.stop();
@@ -249,7 +250,7 @@ export function activate(context: vscode.ExtensionContext): void {
     void vscode.window.showInformationMessage('The natural voice model was removed. Read Aloud offers to download it again when needed.');
   });
   // Not contributed to the command palette: lets integration tests observe real playback and highlighting.
-  register('clearMarkdown.testState', () => reader.snapshot());
+  register('aiMarkdownReader.testState', () => reader.snapshot());
 }
 
 export function deactivate(): void {

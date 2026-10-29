@@ -12,7 +12,7 @@ export interface PlayerMessage {
  * press inside one, so this view hosts the audio while the text is highlighted in the editor.
  */
 export class PlayerView implements vscode.WebviewViewProvider, vscode.Disposable {
-  static readonly id = 'clearMarkdown.player';
+  static readonly id = 'aiMarkdownReader.player';
   private view: vscode.WebviewView | undefined;
   private loaded = false;
   private readonly received = new vscode.EventEmitter<PlayerMessage>();

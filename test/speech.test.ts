@@ -13,7 +13,7 @@ test('process arguments are literal, not shell interpolation', async () => {
 
 test('process failures retain actionable diagnostics', async () => {
   await assert.rejects(runProcess(process.execPath, ['-e', 'console.error("no voice"); process.exit(7)']), /code 7: no voice/);
-  await assert.rejects(runProcess(path.join(os.tmpdir(), 'clear-markdown-missing-executable-123'), []), { code: 'ENOENT' });
+  await assert.rejects(runProcess(path.join(os.tmpdir(), 'ai-markdown-reader-missing-executable-123'), []), { code: 'ENOENT' });
 });
 
 test('speech generation can be cancelled', async () => {

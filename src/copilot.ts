@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-const PREFERRED_MODEL = 'clearMarkdown.copilotModel';
+const PREFERRED_MODEL = 'aiMarkdownReader.copilotModel';
 let consented = false;
 
 /** Removes Markdown syntax and limits a model response to plain spoken sentences. */

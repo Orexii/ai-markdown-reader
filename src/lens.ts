@@ -15,11 +15,11 @@ export class DescribeLens implements vscode.CodeLensProvider, vscode.Disposable 
     return this.reader.describable(document.uri).map(({ block, kind, line, described }) => {
       const range = new vscode.Range(line, 0, line, 0);
       return new vscode.CodeLens(range, described
-        ? { title: '$(sparkle) Reading Copilot\'s description · use the original', command: 'clearMarkdown.restoreBlock', arguments: [document.uri, block] }
+        ? { title: '$(sparkle) Reading Copilot\'s description · use the original', command: 'aiMarkdownReader.restoreBlock', arguments: [document.uri, block] }
         : {
           title: kind === 'table' ? '$(sparkle) Describe this table with Copilot' : '$(sparkle) Explain this code with Copilot',
           tooltip: 'Ask Copilot for a spoken description, review it, then hear it instead of the literal reading',
-          command: 'clearMarkdown.describeBlock', arguments: [document.uri, block]
+          command: 'aiMarkdownReader.describeBlock', arguments: [document.uri, block]
         });
     });
   }

@@ -18,7 +18,7 @@ export interface ReadingPosition { uri: string; sentence: SourceRange | null; wo
  * word being read. VS Code's own preview cannot be highlighted by other extensions.
  */
 export class PreviewPanels implements vscode.CustomTextEditorProvider, vscode.Disposable {
-  static readonly viewType = 'clearMarkdown.preview';
+  static readonly viewType = 'aiMarkdownReader.preview';
   private readonly panels = new Set<Panel>();
   private position: ReadingPosition | undefined;
   private settings = { follow: true, words: true };

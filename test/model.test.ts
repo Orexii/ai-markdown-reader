@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, mkdir, readFile, readdir, rm, truncate, writeFile } from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { downloadVerified, ModelStore, MODELS, VOICES } from '../src/model';
+import { downloadVerified, migrateVoice, ModelStore, MODEL_FOLDER, MODELS, VOICES } from '../src/model';
 
 const body = Buffer.from('natural voice model bytes '.repeat(4000));
 const sha256 = createHash('sha256').update(body).digest('hex');
@@ -99,4 +99,28 @@ test('pinned voices are unique, graded and well-formed', () => {
   assert.equal(VOICES[0]!.id, 'af_heart');
   assert.ok(VOICES.every(voice => /^[0-9a-f]{64}$/.test(voice.sha256) && /^[ab][fm]_[a-z]+$/.test(voice.id)));
   assert.ok(Object.values(MODELS).every(model => /^[0-9a-f]{64}$/.test(model.sha256) && model.size > 1e7));
+});
+
+test('a voice downloaded under the old extension name is moved, never overwriting a newer download', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'amr-migrate-'));
+  try {
+    const legacy = path.join(root, 'orexii.clear-markdown-reader', MODEL_FOLDER);
+    const current = path.join(root, 'orexii.ai-markdown-reader');
+    const logs: string[] = [];
+    assert.equal(await migrateVoice(current, message => logs.push(message)), false, 'nothing to move');
+    await mkdir(path.join(legacy, 'voices'), { recursive: true });
+    await writeFile(path.join(legacy, 'model.onnx'), 'model');
+    await writeFile(path.join(legacy, 'voices', 'af_heart.bin'), 'voice');
+    assert.equal(await migrateVoice(current, message => logs.push(message)), true);
+    assert.equal(await readFile(path.join(current, MODEL_FOLDER, 'model.onnx'), 'utf8'), 'model');
+    assert.equal(await readFile(path.join(current, MODEL_FOLDER, 'voices', 'af_heart.bin'), 'utf8'), 'voice');
+    await assert.rejects(readFile(path.join(legacy, 'model.onnx')), 'moved, not copied');
+    assert.match(logs.join(' '), /Moved the downloaded natural voice/);
+    await mkdir(legacy, { recursive: true });
+    await writeFile(path.join(legacy, 'model.onnx'), 'older');
+    assert.equal(await migrateVoice(current, () => undefined), false, 'an existing download wins');
+    assert.equal(await readFile(path.join(current, MODEL_FOLDER, 'model.onnx'), 'utf8'), 'model');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });

@@ -208,9 +208,9 @@ block is highlighted. With "Read aloud" they are read line by line; with "Skip" 
 
 ![](images/wagyu.png)
 
-[![Wagyu, linking to the extension's home page](images/wagyu.png)](https://github.com/Orexii/clear-markdown-reader)
+[![Wagyu, linking to the extension's home page](images/wagyu.png)](https://github.com/Orexii/ai-markdown-reader)
 
-A remote image: ![Wagyu, loaded from GitHub](https://raw.githubusercontent.com/Orexii/clear-markdown-reader/main/media/extension-icon.png)
+A remote image: ![Wagyu, loaded from GitHub](https://raw.githubusercontent.com/Orexii/ai-markdown-reader/main/media/extension-icon.png)
 
 A reference-style image: ![Wagyu by reference][wagyu-icon]
 

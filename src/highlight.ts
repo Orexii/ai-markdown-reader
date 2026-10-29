@@ -11,13 +11,13 @@ const toRange = (range: SourceRange) => new vscode.Range(range.line, range.chara
  */
 export class EditorHighlight implements vscode.Disposable {
   private readonly sentenceDecoration = vscode.window.createTextEditorDecorationType({
-    backgroundColor: new vscode.ThemeColor('clearMarkdown.readingBackground'),
-    overviewRulerColor: new vscode.ThemeColor('clearMarkdown.readingBackground'),
+    backgroundColor: new vscode.ThemeColor('aiMarkdownReader.readingBackground'),
+    overviewRulerColor: new vscode.ThemeColor('aiMarkdownReader.readingBackground'),
     overviewRulerLane: vscode.OverviewRulerLane.Center,
     rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed
   });
   private readonly wordDecoration = vscode.window.createTextEditorDecorationType({
-    backgroundColor: new vscode.ThemeColor('clearMarkdown.readingWordBackground'),
+    backgroundColor: new vscode.ThemeColor('aiMarkdownReader.readingWordBackground'),
     borderRadius: '3px',
     rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed
   });

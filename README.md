@@ -12,22 +12,30 @@ Tables are read with their column names, bullet points flow as sentences, and te
 
 ## Install
 
-Download the package for your computer from the
-[latest release](https://github.com/Orexii/clear-markdown-reader/releases/latest), then in VS Code run
-**Extensions: Install from VSIX…** (or `code --install-extension <file>.vsix`).
+In VS Code, open the Extensions view (`Ctrl+Shift+X`, `Cmd+Shift+X` on macOS), search for
+**AI Markdown Reader** and select **Install**. You can also run
+`code --install-extension orexii.ai-markdown-reader`. VS Code picks the right package for your
+computer (Windows, macOS or Linux, on x64 or Arm) and keeps it up to date.
+
+To install without the Marketplace, download the package for your computer from the
+[latest release](https://github.com/Orexii/ai-markdown-reader/releases/latest) and run
+**Extensions: Install from VSIX…**.
 
 | Your computer | Package |
 | --- | --- |
-| Windows (Intel/AMD) | `clear-markdown-reader-win32-x64-<version>.vsix` |
-| Windows on Arm | `clear-markdown-reader-win32-arm64-<version>.vsix` |
-| macOS, Apple silicon | `clear-markdown-reader-darwin-arm64-<version>.vsix` |
-| macOS, Intel | `clear-markdown-reader-darwin-x64-<version>.vsix` |
-| Linux x64 | `clear-markdown-reader-linux-x64-<version>.vsix` |
-| Linux Arm64 | `clear-markdown-reader-linux-arm64-<version>.vsix` |
+| Windows (Intel/AMD) | `ai-markdown-reader-win32-x64-<version>.vsix` |
+| Windows on Arm | `ai-markdown-reader-win32-arm64-<version>.vsix` |
+| macOS, Apple silicon | `ai-markdown-reader-darwin-arm64-<version>.vsix` |
+| macOS, Intel | `ai-markdown-reader-darwin-x64-<version>.vsix` |
+| Linux x64 | `ai-markdown-reader-linux-x64-<version>.vsix` |
+| Linux Arm64 | `ai-markdown-reader-linux-arm64-<version>.vsix` |
 
 Install it in **desktop VS Code on the computer you are listening on**. It runs next to your speakers,
 so it also reads files opened through WSL, SSH, containers and Codespaces. VS Code for the Web is
 not supported.
+
+If you used it under its earlier name, **Clear Markdown Reader**, uninstall that one: your settings
+and the downloaded voice move over to AI Markdown Reader automatically.
 
 The first time you read, the player offers to download the natural voice: **326 MB, once**
 (or 92 MB with the `compact` quality setting). After that, speech is generated entirely on your
@@ -48,9 +56,9 @@ file is being read, **Read Aloud from Cursor** jumps straight to the word under 
 
 | Status bar | Action |
 | --- | --- |
-| ↺ 10 | Back 10 seconds (`clearMarkdown.skipBackSeconds`) |
+| ↺ 10 | Back 10 seconds (`aiMarkdownReader.skipBackSeconds`) |
 | ▶ / ⏸ 0:42 / 5:10 | Play or pause; hover for Stop and the player |
-| 30 ↻ | Forward 30 seconds (`clearMarkdown.skipForwardSeconds`) |
+| 30 ↻ | Forward 30 seconds (`aiMarkdownReader.skipForwardSeconds`) |
 | 1× | Speed: 0.5×, 1×, 1.5× or 2×; **More speeds** offers every quarter step from 0.25× to 5× |
 
 Keys work from anywhere while a file is being read: `Ctrl+Alt+P` play/pause, `Ctrl+Alt+,` back,
@@ -73,7 +81,7 @@ context menu. It updates as you edit.
 VS Code's own Markdown preview can't show which words are being read: VS Code doesn't let other
 extensions highlight inside it. So when you press Play while VS Code's preview is open, Read Aloud reads
 that file and shows the Read Aloud Preview in its place. To keep VS Code's preview instead (reading
-without highlighting there), turn off `clearMarkdown.replaceMarkdownPreview`.
+without highlighting there), turn off `aiMarkdownReader.replaceMarkdownPreview`.
 
 ### The Read Aloud player
 
@@ -124,7 +132,7 @@ previous-track button of a music player. Alt+← is not used because it is **Go 
 - **Links** read their text; bare URLs read just the site name. **Images** read their description.
 - **Technical text:** acronyms are spelled (`ANF`, `IcM`, `VMs`), identifiers are split
   (`DataHarborConfig` → "Data Harbor Config"), and money, times, years, ranges and versions are
-  normalized. Add your own words with `clearMarkdown.pronunciations`, for example
+  normalized. Add your own words with `aiMarkdownReader.pronunciations`, for example
   `{ "Kusto": "kuss toe", "Rakeem": "/ɹɑːkˈiːm/" }` (slashes mean IPA phonemes). Put it in workspace
   settings to share it with your team.
 
@@ -143,11 +151,11 @@ On the 16-core machine it was developed on, four CPU threads generate speech thr
 faster than real time. The player prepares the next minute or two ahead and joins consecutive
 sentences into one continuous track, so there is no gap or hitch between sentences, even at 2×. When
 little audio is ready (just after starting or skipping), it generates shorter pieces so they arrive
-in time. Use `clearMarkdown.threads` to change how many threads it uses. If speech ever falls behind,
+in time. Use `aiMarkdownReader.threads` to change how many threads it uses. If speech ever falls behind,
 the **AI Markdown Reader** output channel says so.
 
 If you prefer, or if the natural voice cannot run, choose **Use the system voice** in the player
-settings (`clearMarkdown.engine`: `system`). This uses Windows voices, macOS `say`, or `espeak-ng` on
+settings (`aiMarkdownReader.engine`: `system`). This uses Windows voices, macOS `say`, or `espeak-ng` on
 Linux (`sudo apt install espeak-ng`); their quality varies and word highlighting is approximate.
 
 The voices in the ChatGPT, Gemini and Claude apps come from much larger models running on their
@@ -175,24 +183,24 @@ the original narration. Don't use it for content you are not allowed to share.
 
 | Setting | Default | |
 | --- | --- | --- |
-| `clearMarkdown.engine` | `natural` | `natural` (Kokoro, local) or `system` |
-| `clearMarkdown.naturalVoice` | `af_heart` | Natural voice |
-| `clearMarkdown.naturalQuality` | `best` | `best` (326 MB) or `compact` (92 MB, slightly lower quality) |
-| `clearMarkdown.systemVoice` | | Operating-system voice for the system engine |
-| `clearMarkdown.rate` | `1` | Speed, in quarter steps from 0.25 to 5; pitch preserved |
-| `clearMarkdown.expandedSpeeds` | `false` | Offer every quarter step from 0.25× to 5× instead of 0.5×, 1×, 1.5× and 2× |
-| `clearMarkdown.volume` | `100` | Volume in percent; the player's slider changes it |
-| `clearMarkdown.skipBackSeconds` / `skipForwardSeconds` | `10` / `30` | Skip lengths |
-| `clearMarkdown.tableMode` | `rows` | `rows` or `columns` |
-| `clearMarkdown.codeBlocks` | `announce` | `announce`, `read` or `skip` |
-| `clearMarkdown.highlightWords` | `true` | Highlight each word as well as the sentence (editor and Read Aloud Preview) |
-| `clearMarkdown.followInEditor` | `true` | Scroll the editor and the Read Aloud Preview to keep the reading in view |
-| `clearMarkdown.replaceMarkdownPreview` | `true` | Show the Read Aloud Preview in place of VS Code's preview when reading starts from it |
-| `clearMarkdown.pronunciations` | `{}` | Your pronunciation dictionary |
-| `clearMarkdown.threads` | `0` | CPU threads for the natural voice (0 = automatic) |
+| `aiMarkdownReader.engine` | `natural` | `natural` (Kokoro, local) or `system` |
+| `aiMarkdownReader.naturalVoice` | `af_heart` | Natural voice |
+| `aiMarkdownReader.naturalQuality` | `best` | `best` (326 MB) or `compact` (92 MB, slightly lower quality) |
+| `aiMarkdownReader.systemVoice` | | Operating-system voice for the system engine |
+| `aiMarkdownReader.rate` | `1` | Speed, in quarter steps from 0.25 to 5; pitch preserved |
+| `aiMarkdownReader.expandedSpeeds` | `false` | Offer every quarter step from 0.25× to 5× instead of 0.5×, 1×, 1.5× and 2× |
+| `aiMarkdownReader.volume` | `100` | Volume in percent; the player's slider changes it |
+| `aiMarkdownReader.skipBackSeconds` / `skipForwardSeconds` | `10` / `30` | Skip lengths |
+| `aiMarkdownReader.tableMode` | `rows` | `rows` or `columns` |
+| `aiMarkdownReader.codeBlocks` | `announce` | `announce`, `read` or `skip` |
+| `aiMarkdownReader.highlightWords` | `true` | Highlight each word as well as the sentence (editor and Read Aloud Preview) |
+| `aiMarkdownReader.followInEditor` | `true` | Scroll the editor and the Read Aloud Preview to keep the reading in view |
+| `aiMarkdownReader.replaceMarkdownPreview` | `true` | Show the Read Aloud Preview in place of VS Code's preview when reading starts from it |
+| `aiMarkdownReader.pronunciations` | `{}` | Your pronunciation dictionary |
+| `aiMarkdownReader.threads` | `0` | CPU threads for the natural voice (0 = automatic) |
 
-The highlight colors are themable: `clearMarkdown.readingBackground` (sentence) and
-`clearMarkdown.readingWordBackground` (word) in `workbench.colorCustomizations`.
+The highlight colors are themable: `aiMarkdownReader.readingBackground` (sentence) and
+`aiMarkdownReader.readingWordBackground` (word) in `workbench.colorCustomizations`.
 
 ## Troubleshooting
 
@@ -232,6 +240,12 @@ For a hands-on check, [examples/wagyu.md](examples/wagyu.md) is a Shiba-themed m
 uses every Markdown feature the reader supports (the unit tests read it too), and
 [examples/wagyu-checklist.md](examples/wagyu-checklist.md) walks through every control and what you
 should hear and see.
+
+To release, bump `version` in `package.json`, add a CHANGELOG entry and publish a GitHub release with
+the packages from `npm run package`. Publishing the release runs
+[publish.yml](.github/workflows/publish.yml), which tests, packages and publishes all six platforms to
+the VS Code Marketplace with
+[Trusted Publishing](https://github.com/microsoft/vscode-vsce#trusted-publishing) (no stored token).
 
 ## License
 

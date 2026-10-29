@@ -97,7 +97,7 @@ export class Reader implements vscode.Disposable {
       highlight.onDidChangeDetached(() => this.updateControls()),
       vscode.workspace.onDidChangeTextDocument(event => this.edited(event)),
       vscode.workspace.onDidChangeConfiguration(event => {
-        if (event.affectsConfiguration('clearMarkdown')) void this.configurationChanged(event).catch(error => this.fail(error));
+        if (event.affectsConfiguration('aiMarkdownReader')) void this.configurationChanged(event).catch(error => this.fail(error));
       })
     );
   }
@@ -348,6 +348,7 @@ export class Reader implements vscode.Disposable {
 
   private async selectEngine(): Promise<void> {
     if (this.download) return;
+    await this.services.migrated;
     this.settings = this.services.settings();
     if (this.settings.engine === 'system') return this.useSystem();
     const { store } = this.services;
@@ -520,7 +521,7 @@ export class Reader implements vscode.Disposable {
         await this.selectEngine();
         break;
       case 'readActive':
-        await vscode.commands.executeCommand('clearMarkdown.read');
+        await vscode.commands.executeCommand('aiMarkdownReader.read');
         break;
       case 'refresh':
         this.refresh();
@@ -615,7 +616,7 @@ export class Reader implements vscode.Disposable {
   private async configurationChanged(event: vscode.ConfigurationChangeEvent): Promise<void> {
     const before = this.settings;
     const after = this.services.settings();
-    const changed = (key: string) => event.affectsConfiguration(`clearMarkdown.${key}`);
+    const changed = (key: string) => event.affectsConfiguration(`aiMarkdownReader.${key}`);
     this.settings = after;
     const playerSettings = ['rate', 'expandedSpeeds', 'volume', 'highlightWords', 'followInEditor', 'skipBackSeconds', 'skipForwardSeconds'].some(changed);
     if (!this.reading) {

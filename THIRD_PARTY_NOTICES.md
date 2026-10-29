@@ -6,7 +6,7 @@ contain the components below.
 **eSpeak NG.** The bundled phonemizer package contains eSpeak NG compiled to WebAssembly. eSpeak NG is
 licensed under the GNU General Public License version 3 or later, so each packaged release, taken as a
 whole, is distributed under GPL-3.0-or-later (licenses/GPL-3.0.txt). The complete corresponding source is
-this repository (https://github.com/Orexii/clear-markdown-reader), phonemizer.js
+this repository (https://github.com/Orexii/ai-markdown-reader), phonemizer.js
 (https://github.com/xenova/phonemizer.js) and eSpeak NG (https://github.com/espeak-ng/espeak-ng).
 
 **Kokoro-82M.** The natural voice model and voice files are not included in releases. They are downloaded
