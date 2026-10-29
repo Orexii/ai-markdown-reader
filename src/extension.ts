@@ -56,20 +56,35 @@ export function activate(context: vscode.ExtensionContext): void {
     const candidates = vscode.workspace.textDocuments.filter(document => document.languageId === 'markdown' && path.posix.basename(document.uri.path) === name);
     return candidates.find(document => document.uri.toString() === lastMarkdown?.toString()) ?? candidates[0];
   };
-  const target = async (): Promise<Target> => {
+  /** The file a tab shows, in a text editor or a custom editor such as a preview. */
+  const fileOf = (tab: vscode.Tab | undefined): vscode.Uri | undefined =>
+    tab?.input instanceof vscode.TabInputText || tab?.input instanceof vscode.TabInputCustom ? tab.input.uri : undefined;
+  /** The tab on screen showing a file, in the focused group first. */
+  const tabShowing = (uri: vscode.Uri): vscode.Tab | undefined => {
+    const { activeTabGroup, all } = vscode.window.tabGroups;
+    return [activeTabGroup, ...all].map(group => group.activeTab).find(tab => fileOf(tab)?.toString() === uri.toString());
+  };
+  /** The Markdown in a tab, or by default in the active editor or tab. */
+  const target = async (tab?: vscode.Tab): Promise<Target> => {
     const active = vscode.window.activeTextEditor;
-    if (active?.document.languageId === 'markdown') return { document: active.document, editor: active };
-    const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
-    const input = tab?.input;
-    if (tab && input instanceof vscode.TabInputCustom && (input.viewType === PreviewPanels.viewType || input.viewType === BUILT_IN_PREVIEW_EDITOR)) {
+    if (!tab && active?.document.languageId === 'markdown') return { document: active.document, editor: active };
+    const shown = tab ?? vscode.window.tabGroups.activeTabGroup.activeTab;
+    const input = shown?.input;
+    if (shown && input instanceof vscode.TabInputText) {
+      const editor = vscode.window.visibleTextEditors.find(candidate =>
+        candidate.document.uri.toString() === input.uri.toString() && candidate.viewColumn === shown.group.viewColumn);
+      if (editor?.document.languageId === 'markdown') return { document: editor.document, editor };
+    }
+    if (shown && input instanceof vscode.TabInputCustom && (input.viewType === PreviewPanels.viewType || input.viewType === BUILT_IN_PREVIEW_EDITOR)) {
       const document = await vscode.workspace.openTextDocument(input.uri);
-      return { document, builtInPreview: input.viewType === BUILT_IN_PREVIEW_EDITOR ? tab : undefined };
+      return { document, builtInPreview: input.viewType === BUILT_IN_PREVIEW_EDITOR ? shown : undefined };
     }
-    if (tab && input instanceof vscode.TabInputWebview && isBuiltInPreviewPanel(input.viewType)) {
-      const document = previewSource(tab);
+    if (shown && input instanceof vscode.TabInputWebview && isBuiltInPreviewPanel(input.viewType)) {
+      const document = previewSource(shown);
       if (!document) throw new Error('Could not tell which file this preview shows. Open the Markdown file and try again.');
-      return { document, builtInPreview: tab };
+      return { document, builtInPreview: shown };
     }
+    if (tab) throw new Error('Choose a Markdown file.');
     const visible = vscode.window.visibleTextEditors.find(editor => editor.document.languageId === 'markdown');
     if (visible) return { document: visible.document, editor: visible };
     throw new Error('Open a Markdown file or its preview first.');
@@ -86,15 +101,20 @@ export function activate(context: vscode.ExtensionContext): void {
     const where = (editor?: vscode.TextEditor): Start => (start !== 'cursor' ? start
       : editor ? { line: editor.selection.active.line, character: editor.selection.active.character } : 'resume');
     try {
-      if (resource instanceof vscode.Uri && resource.toString() !== vscode.window.activeTextEditor?.document.uri.toString()) {
-        // From the Explorer: show the file, because the reading is highlighted in its editor.
-        const document = await vscode.workspace.openTextDocument(resource);
+      // The Explorer passes the file clicked. An editor's title bar passes the file it shows, or a
+      // webview-panel: address for VS Code's Open Preview panel, so a file on screen is read where it is,
+      // even in a preview.
+      const file = resource instanceof vscode.Uri && resource.scheme !== 'webview-panel' ? resource : undefined;
+      const shown = file && tabShowing(file);
+      if (file && !shown) {
+        // Not on screen: show the file, because the reading is highlighted in its editor.
+        const document = await vscode.workspace.openTextDocument(file);
         if (document.languageId !== 'markdown') throw new Error('Choose a Markdown file.');
         await vscode.window.showTextDocument(document, { preview: true });
         await reader.open({ document, start: 'resume' });
         return;
       }
-      const found = await target();
+      const found = await target(shown);
       if (!found.editor) {
         if (selection) throw new Error('Select the Markdown you want to hear in the editor first.');
         if (found.builtInPreview) await swapPreview(found.builtInPreview, found.document);

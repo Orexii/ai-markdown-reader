@@ -147,19 +147,37 @@ export async function run(): Promise<void> {
   assert.ok(stalls <= 1, `playback stalled ${stalls} times at triple speed: ${current.events.join(' | ')}`);
   assert.ok(gaps.every(gap => gap < 250), `a track handoff left an audible gap: ${gaps.join(', ')}`);
 
-  // Reading from VS Code's own Markdown preview swaps it for the Read Aloud Preview, which highlights the spoken word.
-  await vscode.commands.executeCommand('vscode.openWith', document.uri, 'vscode.markdown.preview.editor');
+  // The Read Aloud button in a preview's title bar reads in the preview, putting the Read Aloud Preview, which
+  // highlights the spoken word, in place of VS Code's own previews. The harness clicks the button for real:
+  // VS Code passes it the file the editor shows, which must not open the source instead.
   const isTab = (viewType: string) => (tab: vscode.Tab | undefined) => tab?.input instanceof vscode.TabInputCustom && tab.input.viewType === viewType;
+  const isPreviewPanel = (tab: vscode.Tab | undefined) => tab?.input instanceof vscode.TabInputWebview && /markdown\.preview$/.test(tab.input.viewType);
   const allTabs = () => vscode.window.tabGroups.all.flatMap(group => group.tabs);
-  await until(() => isTab('vscode.markdown.preview.editor')(vscode.window.tabGroups.activeTabGroup.activeTab), "VS Code's preview to open", 20_000);
-  await vscode.commands.executeCommand('aiMarkdownReader.readFromTop');
-  current = await until(s => s.previews > 0 && !!s.previewWord && !!s.expectedWord && s.playing, 'the Read Aloud Preview to highlight a spoken word', 60_000);
-  assert.ok(isTab('aiMarkdownReader.preview')(vscode.window.tabGroups.activeTabGroup.activeTab), 'the Read Aloud Preview took the place of VS Code\'s preview');
-  assert.ok(!allTabs().some(isTab('vscode.markdown.preview.editor')), "VS Code's preview was closed");
+  const activeTab = () => vscode.window.tabGroups.activeTabGroup.activeTab;
   const letters = (value: string) => value.replace(/[^\p{L}\p{N}]/gu, '').toLowerCase();
-  current = await until(s => !!s.previewWord && !!s.expectedWord && letters(s.previewWord) === letters(s.expectedWord), 'the preview to highlight the word being spoken', 30_000);
-  assert.ok(current.previewSentence!.includes(current.previewWord!.replace(/[.,;:!?]+$/, '')), 'the spoken word is inside the highlighted sentence');
+  let clicks = 0;
+  const readFromTitleBar = async (where: string): Promise<State> => {
+    await vscode.commands.executeCommand('aiMarkdownReader.stop');
+    await until(s => !s.loaded, `stopping before reading from ${where}`);
+    console.log(`E2E-CLICK title ${++clicks} [Read Aloud]`);
+    const reading = await until(s => s.playing && !!s.previewWord && !!s.expectedWord && letters(s.previewWord) === letters(s.expectedWord),
+      `the Read Aloud button in ${where} to read in the preview`, 60_000);
+    assert.ok(isTab('aiMarkdownReader.preview')(activeTab()), `the Read Aloud Preview is showing after the Read Aloud button in ${where}`);
+    assert.ok(reading.previewSentence!.includes(reading.previewWord!.replace(/[.,;:!?]+$/, '')), 'the spoken word is inside the highlighted sentence');
+    return reading;
+  };
+  await vscode.commands.executeCommand('vscode.openWith', document.uri, 'vscode.markdown.preview.editor');
+  await until(() => isTab('vscode.markdown.preview.editor')(activeTab()), "VS Code's Markdown Preview editor to open", 20_000);
+  current = await readFromTitleBar("VS Code's Markdown Preview editor");
+  assert.ok(!allTabs().some(isTab('vscode.markdown.preview.editor')), "VS Code's Markdown Preview editor was closed");
   console.log(`Read Aloud Preview: highlighted "${current.previewWord}" in "${current.previewSentence}".`);
+  await readFromTitleBar('the Read Aloud Preview');
+  await vscode.window.tabGroups.close(allTabs().filter(isTab('aiMarkdownReader.preview')));
+  await vscode.window.showTextDocument(document);
+  await vscode.commands.executeCommand('markdown.showPreview');
+  await until(() => isPreviewPanel(activeTab()), "VS Code's Open Preview panel to open", 20_000);
+  await readFromTitleBar("VS Code's Open Preview panel");
+  assert.ok(!allTabs().some(isPreviewPanel), "VS Code's Open Preview panel was closed");
   await vscode.commands.executeCommand('aiMarkdownReader.togglePlay');
   await until(s => !s.playing, 'pause in the preview');
   await vscode.window.tabGroups.close(allTabs().filter(isTab('aiMarkdownReader.preview')));
@@ -181,10 +199,11 @@ export async function run(): Promise<void> {
   const topics = ['Kusto clusters', 'Geneva logs', 'certificate rotation', 'regional rollouts', 'capacity planning', 'incident reviews'];
   await writeFile(fast, topics.map((topic, n) => `## ${topic}\n\n` + Array.from({ length: 5 }, (_, k) =>
     `Point ${k + 1} about ${topic} explains what the team checks before a change in section ${n + 1}, and why it matters.`).join(' ')).join('\n\n') + '\n');
-  await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(fast));
+  // Read Aloud from the Explorer on a file that is not open shows it in the editor, where the reading is highlighted.
   await config.update('rate', 5, vscode.ConfigurationTarget.Global);
-  await vscode.commands.executeCommand('aiMarkdownReader.readFromTop');
+  await vscode.commands.executeCommand('aiMarkdownReader.read', vscode.Uri.file(fast));
   current = await until(s => s.file === path.basename(fast) && s.rate === 5 && s.playing, 'five times speed on a new document');
+  assert.equal(vscode.window.activeTextEditor?.document.uri.fsPath, vscode.Uri.file(fast).fsPath, 'a file read from the Explorer opens in the editor');
   const started = Date.now();
   current = await until(s => s.events.includes('finished'), 'finishing at five times speed', 240_000);
   const fastStalls = stats(current.events, 'stall-end ');
@@ -204,5 +223,5 @@ export async function run(): Promise<void> {
   assert.equal(current.sentenceText, undefined, 'stopping clears the highlight');
   await config.update('engine', undefined, vscode.ConfigurationTarget.Global);
   await config.update('rate', undefined, vscode.ConfigurationTarget.Global);
-  console.log('Extension host: natural voice, editor highlighting, commands, short and expanded speeds, hidden player at 3x, Read Aloud Preview, selection, 5x and system voice passed.');
+  console.log('Extension host: natural voice, editor highlighting, commands, short and expanded speeds, hidden player at 3x, Read Aloud button in all three previews, Explorer, selection, 5x and system voice passed.');
 }

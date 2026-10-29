@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.1
+
+- **The Read Aloud button in a preview reads in the preview.** The speaker button in the title bar of a
+  Markdown preview used to open the source file and read it there. Now it reads in the Read Aloud
+  Preview, highlighting each word. This works from the Read Aloud Preview and from VS Code's own preview,
+  which the Read Aloud Preview replaces. Read Aloud from the Explorer still opens a file in the editor
+  if the file is not already showing.
+
 ## 0.8.0
 
 - **On the VS Code Marketplace** as `orexii.ai-markdown-reader`: search for **AI Markdown Reader** in the

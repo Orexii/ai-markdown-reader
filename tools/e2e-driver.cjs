@@ -9,8 +9,25 @@ const { _electron } = require('playwright-core');
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => key !== 'ELECTRON_RUN_AS_NODE'));
   const app = await _electron.launch({ executablePath, args, env, timeout: 180_000 });
   const child = app.process();
-  child.stdout?.on('data', data => process.stdout.write(data));
-  child.stderr?.on('data', data => process.stdout.write(data));
+  // The test asks for clicks it cannot make through the API with a line "E2E-CLICK title <id> [<button label>]":
+  // a button in the active editor's title bar, which VS Code runs with that editor's file.
+  const requests = [];
+  const seen = new Set();
+  let partial = '';
+  const output = data => {
+    process.stdout.write(data);
+    const lines = (partial + data).split(/\r?\n/);
+    partial = lines.pop();
+    for (const line of lines) {
+      const request = /E2E-CLICK title (\d+) \[([^\]]+)\]/.exec(line);
+      if (request && !seen.has(request[1])) {
+        seen.add(request[1]);
+        requests.push(request[2]);
+      }
+    }
+  };
+  child.stdout?.on('data', output);
+  child.stderr?.on('data', output);
   let closed = false;
   app.on('close', () => { closed = true; });
   const window = await app.firstWindow();
@@ -18,6 +35,15 @@ const { _electron } = require('playwright-core');
   let shots = 0;
   let lastShot = Date.now();
   while (!closed) {
+    while (requests.length) {
+      const label = requests.shift();
+      try {
+        await window.locator(`.editor-group-container.active .editor-actions .action-label[aria-label^="${label}"]`).first().click({ timeout: 15_000 });
+        console.log(`E2E: clicked ${label} in the editor title bar`);
+      } catch (error) {
+        console.log(`E2E: could not click ${label} in the editor title bar: ${error.message.split('\n')[0]}`);
+      }
+    }
     for (const frame of window.frames()) {
       try {
         const button = frame.locator('#start-button');

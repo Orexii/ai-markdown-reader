@@ -65,7 +65,9 @@ try {
   code.stdout.on('data', data => { output += data; });
   code.stderr.on('data', data => { output += data; });
   const exit = await new Promise(resolve => code.on('close', resolve));
-  const relevant = output.split(/\r?\n/).filter(line => /E2E:|Natural voice|Read Aloud Preview:|Background:|Extension host:|Error|assert|Timed out|failed/i.test(line) && !/DeprecationWarning|mutex|agentHost|CloudSandbox|Unknown channel|proposal|GPU|gpu_|ERROR:/i.test(line));
+  // Chromium's own log lines look like "[1234:1029/020512.345:ERROR:gpu_init.cc(42)] ..."; test failures must stay.
+  const relevant = output.split(/\r?\n/).filter(line => /E2E:|Natural voice|Read Aloud Preview:|Background:|Extension host:|Error|assert|Timed out|failed/i.test(line) &&
+    !/DeprecationWarning|mutex|agentHost|CloudSandbox|Unknown channel|proposal|GPU|gpu_/i.test(line) && !/:ERROR:/.test(line));
   console.log(relevant.join('\n'));
   if (exit !== 0) {
     if (existsSync(path.join(temp, 'profile', 'logs'))) console.log(`Logs kept at ${path.join(temp, 'profile', 'logs')}`);
