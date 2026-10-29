@@ -1,6 +1,11 @@
 export type Segment = { text: string } | { phonemes: string };
 export type Accent = 'us' | 'gb';
 
+/** A table's own entry. The tables are plain objects, so words such as "constructor" must not reach Object.prototype. */
+export function own<T>(table: Readonly<Record<string, T>>, key: string): T | undefined {
+  return Object.hasOwn(table, key) ? table[key] : undefined;
+}
+
 // Letter names as [onset, nucleus...] so the stress mark lands before the vowel, as eSpeak writes it.
 const LETTERS: Record<string, [string, string]> = {
   A: ['', 'eɪ'], B: ['b', 'iː'], C: ['s', 'iː'], D: ['d', 'iː'], E: ['', 'iː'], F: ['', 'ɛf'], G: ['dʒ', 'iː'],
@@ -108,7 +113,7 @@ const UNITS: Record<string, [string, string]> = {
 const ATTACHED_UNITS = new Set(Object.keys(UNITS).filter(unit => unit.length > 1 && !['mi', 'ml', 'mL', 'min', 'sec'].includes(unit)));
 
 function unitName(unit: string, amount: string): string | undefined {
-  const names = UNITS[unit];
+  const names = own(UNITS, unit);
   return names && (amount.replace(/,/g, '') === '1' ? names[1] : names[0]);
 }
 
@@ -163,7 +168,7 @@ export function pronounce(word: string, accent: Accent = 'us', dictionary: Reado
   if (!value) return [];
   // A unit after a number: "8–11 kg" is "8 to 11 kilograms", "1 GB" is "1 gigabyte".
   const amount = previous?.trim().match(/(\d[\d,]*(?:\.\d+)?)\)?$/)?.[1];
-  if (amount !== undefined && UNITS[value] && !dictionary.has(value)) return [{ text: unitName(value, /[-–]/.test(previous!) ? '2' : amount)! }];
+  if (amount !== undefined && own(UNITS, value) && !dictionary.has(value)) return [{ text: unitName(value, /[-–]/.test(previous!) ? '2' : amount)! }];
   const letters = (text: string, plural = false): Segment => textOnly
     ? { text: `${[...text.toUpperCase()].join(' ')}${plural ? "'s" : ''}` }
     : { phonemes: spell(text, accent, plural) };
@@ -173,10 +178,12 @@ export function pronounce(word: string, accent: Accent = 'us', dictionary: Reado
     if (!ipa) return [{ text: custom }];
     return textOnly ? [{ text: value }] : [{ phonemes: ipa[1]! }];
   }
-  if (BUILTIN[value]) return [{ text: BUILTIN[value]! }];
-  const abbreviation = ABBREVIATIONS[value.toLowerCase()];
+  const builtin = own(BUILTIN, value);
+  if (builtin) return [{ text: builtin }];
+  const abbreviation = own(ABBREVIATIONS, value.toLowerCase());
   if (abbreviation) return [{ text: abbreviation }];
-  if (SYMBOLS[value]) return [{ text: SYMBOLS[value]! }];
+  const symbol = own(SYMBOLS, value);
+  if (symbol) return [{ text: symbol }];
   const number = normalizeNumber(value);
   if (number !== undefined) return [{ text: number }];
 
@@ -190,20 +197,20 @@ export function pronounce(word: string, accent: Accent = 'us', dictionary: Reado
   // Keyboard shortcuts such as Ctrl+Shift+→: arrows and symbols are key names here.
   if (/^[A-Za-z]+(?:\+[A-Za-z]+)*\+[A-Za-z0-9←→↑↓⌘⌥⇧⏎↵]$/.test(value) || /^(?:[A-Za-z]+\+)+[←→↑↓]$/.test(value)) {
     return mergeText(value.split('+').flatMap((key, k): Segment[] => [
-      ...(k ? [{ text: 'plus' }] : []), KEY_NAMES[key] ? { text: KEY_NAMES[key]! } : BUILTIN[key] ? { text: BUILTIN[key]! } : isAcronym(key) && key.length > 1 ? letters(key) : { text: key }
+      ...(k ? [{ text: 'plus' }] : []), own(KEY_NAMES, key) ? { text: own(KEY_NAMES, key)! } : own(BUILTIN, key) ? { text: own(BUILTIN, key)! } : isAcronym(key) && key.length > 1 ? letters(key) : { text: key }
     ]));
   }
   if (!looksLikeIdentifier(value)) return [{ text: value }];
   const segments: Segment[] = [];
   for (const part of identifierParts(value)) {
     if (/^[A-Za-z]+$/.test(part)) {
-      if (BUILTIN[part]) segments.push({ text: BUILTIN[part]! });
+      if (own(BUILTIN, part)) segments.push({ text: own(BUILTIN, part)! });
       else if (isAcronym(part)) segments.push(letters(part));
       else segments.push({ text: part });
     } else if (/^\d/.test(part)) {
       segments.push({ text: part.split('.').join(' point ') });
-    } else if (SEPARATORS[part] !== undefined) {
-      segments.push({ text: SEPARATORS[part]! });
+    } else if (own(SEPARATORS, part) !== undefined) {
+      segments.push({ text: own(SEPARATORS, part)! });
     }
   }
   return mergeText(segments);

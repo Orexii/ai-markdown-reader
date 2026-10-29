@@ -1,6 +1,6 @@
 import MarkdownIt from 'markdown-it';
 import type Token from 'markdown-it/lib/token.mjs';
-import { KEY_NAMES } from './engine/pronounce';
+import { KEY_NAMES, own } from './engine/pronounce';
 
 export type BlockKind = 'heading' | 'paragraph' | 'item' | 'table' | 'code' | 'html';
 
@@ -233,7 +233,7 @@ function collectRuns(children: Token[]): Run[] {
         if (!child.content) break;
         if (autolink) runs.push({ text: child.content, spoken: spokenForm(child.content), atomic: true });
         // Inside <kbd>, an arrow is a key: "right arrow", not "to".
-        else if (key && KEY_NAMES[child.content.trim()]) runs.push({ text: child.content, spoken: KEY_NAMES[child.content.trim()], atomic: true });
+        else if (key && own(KEY_NAMES, child.content.trim())) runs.push({ text: child.content, spoken: own(KEY_NAMES, child.content.trim()), atomic: true });
         else runs.push({ text: child.content });
         break;
       // Inline code is one highlighted unit even when it contains several words.
@@ -523,7 +523,7 @@ class Builder {
       return;
     }
     const kind = language === 'mermaid' ? 'Diagram' : 'Code block';
-    const name = language === 'mermaid' ? '' : LANGUAGES[language] ?? (language ? language : '');
+    const name = language === 'mermaid' ? '' : own(LANGUAGES, language) ?? (language ? language : '');
     const words = `${kind}${name ? `, ${name}` : ''}, ${count} ${count === 1 ? 'line' : 'lines'}`.split(' ')
       .map((part, k, all) => ({ text: part.replace(/,$/, ''), range: null, sep: k === all.length - 1 ? '.' : part.endsWith(',') ? ', ' : ' ' }));
     this.add(block, [{ range: this.source.lineRange(first, end), words }], PAUSE.sentence, PAUSE.code);

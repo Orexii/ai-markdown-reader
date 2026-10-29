@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.3
+
+- **Words such as "constructor" and "toString" are read.** A sentence containing a word that is also the
+  name of a built-in JavaScript property (constructor, toString, valueOf, hasOwnProperty and others) could
+  not be played with the natural voice, and the system voice said "function Object() { [native code] }"
+  instead. Such words in `<kbd>` keys and as a code block's language are read correctly too.
+
 ## 0.8.2
 
 - **→ and ← move through a table one row at a time.** They used to skip a whole table at once, as did

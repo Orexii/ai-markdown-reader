@@ -279,3 +279,8 @@ test('<kbd> arrows are key names, hard line breaks are phrases, and * between nu
   assert.deepEqual(words.slice(0, 5), ['2', '*', '3', '=', '6']);
   assert.equal(words.filter(word => word === '*').length, 1);
 });
+
+test('code languages and <kbd> text named like built-in object properties are read as written', () => {
+  assert.deepEqual(spoken('```constructor\nx\n```'), ['Code block, constructor, 1 line.']);
+  assert.deepEqual(spoken('Press <kbd>constructor</kbd> then <kbd>→</kbd>.'), ['Press constructor then right arrow.']);
+});

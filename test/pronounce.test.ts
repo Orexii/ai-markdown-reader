@@ -95,3 +95,17 @@ test('keyboard shortcuts name their keys, and arrows inside sentences are words'
   assert.equal(pronounceAsText('*'), 'times', 'kept only between numbers by the narration');
   assert.equal(pronounceAsText('C++'), 'C plus plus');
 });
+
+test('words named like built-in object properties are read as words', () => {
+  // The tables are plain objects: "constructor" or "toString" must not reach Object.prototype.
+  assert.deepEqual(pronounce('constructor'), [{ text: 'constructor' }]);
+  assert.deepEqual(pronounce('toString'), [{ text: 'to String' }]);
+  assert.deepEqual(pronounce('valueOf'), [{ text: 'value Of' }]);
+  assert.deepEqual(pronounce('hasOwnProperty'), [{ text: 'has Own Property' }]);
+  assert.deepEqual(pronounce('__proto__'), [{ text: 'proto' }]);
+  assert.deepEqual(pronounce('constructor', 'us', new Map(), false, '3'), [{ text: 'constructor' }], 'not a unit after a number');
+  assert.deepEqual(pronounce('Ctrl+constructor'), [{ text: 'control plus constructor' }]);
+  assert.equal(pronounceAsText('constructor'), 'constructor');
+  assert.equal(pronounceAsText('toString'), 'to String');
+  assert.equal(normalizeNumber('constructor'), undefined);
+});

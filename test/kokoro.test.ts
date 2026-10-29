@@ -127,6 +127,17 @@ test('the misaki lexicon supplies trained pronunciations and context, with eSpea
   }
 });
 
+test('sentences with words named like built-in object properties are spoken', async () => {
+  const { model, cleanup } = await fixture(false, path.resolve('lexicon'));
+  try {
+    const segments = await model.synthesize(request(['Call the constructor, then toString and valueOf.', 0.3]));
+    assert.equal(segments.length, 1);
+    assert.ok(segments[0]!.wordTimes.every(time => time >= 0), 'every word is spoken');
+  } finally {
+    await cleanup();
+  }
+});
+
 test('eSpeak IPA is rewritten in the symbols Kokoro was trained on', () => {
   assert.equal(toMisaki('dˈeɪɾə bˈaʊndɚɹi ˈeɪdʒənt tʃˈɜːtʃ ɐ tˈeɪbəlz ɡˈoʊ', 'us'), 'dˈAɾə bˈWndəɹi ˈAʤənt ʧˈɜɹʧ ə tˈAbᵊlz ɡˈO');
   assert.equal(toMisaki('kˈɑːɹ fˈiːt', 'us'), 'kˈɑɹ fˈit');
