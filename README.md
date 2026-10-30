@@ -10,6 +10,14 @@ play/pause and speed (0.5×, 1×, 1.5× and 2×, or any quarter step from 0.25×
 Tables are read with their column names, bullet points flow as sentences, and technical text such as
 `ANFObservabilityDB`, `IcM`, `v1.2.3` or `$12.50` is pronounced the way people say it.
 
+## On Android: testers wanted
+
+AI Markdown Reader is coming to Android, with the same natural voice running on your phone. Before
+Google Play will publish it, at least 12 people need to test it for 14 days. If you have an Android
+phone, join [the testers group](https://groups.google.com/g/ai-markdown-reader-testers), then
+[become a tester](https://play.google.com/apps/testing/com.orexii.aimarkdownreader) and install it
+from Google Play. Thank you!
+
 ## Install
 
 In VS Code, open the Extensions view (`Ctrl+Shift+X`, `Cmd+Shift+X` on macOS), search for

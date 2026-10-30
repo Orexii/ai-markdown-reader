@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.4
+
+- **AI Markdown Reader is coming to Android.** The README explains how to help test the Android app, which
+  reads Markdown with the same natural voice on your phone. No changes to the extension itself.
+
 ## 0.8.3
 
 - **Words such as "constructor" and "toString" are read.** A sentence containing a word that is also the
